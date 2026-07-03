@@ -5,6 +5,7 @@ import { llmAvailable } from "./llm.js";
 import {
   ROOT,
   analyze,
+  analyzeCached,
   impact,
   impactCached,
   loadCorpus,
@@ -97,6 +98,15 @@ app.post("/api/modernize", async (req, res) => {
  * This is the conversation-first entry point — the ASI:One / Agentverse wrapper
  * and judges' curl both use it; no custom frontend required for the core flow.
  */
+app.get("/api/run", (_req, res) => {
+  // judges poking the URL in a browser get usage instead of a 404
+  res.json({
+    usage: "POST /api/run",
+    body: { change: "Raise the overtime multiplier from 1.5x to 1.75x for weekday overtime, effective next pay week.", modernize: true, cachedOnly: false },
+    note: "cachedOnly:true answers only from cache (instant) and returns {pending:true} otherwise",
+  });
+});
+
 app.post("/api/run", async (req, res) => {
   try {
     const change = String(req.body?.change ?? "").trim();
@@ -110,21 +120,30 @@ app.post("/api/run", async (req, res) => {
         : loadCorpus();
     const withModern = req.body?.modernize !== false; // default true
     const cachedOnly = req.body?.cachedOnly === true;
-    const analysis = await analyze(files);
-    analyses.set(analysis.id, { analysis, files });
+    let analysis: Analysis;
     let imp: Impact;
     let modern = null;
     if (cachedOnly) {
-      // tight-budget callers (hosted chat agents): answer only from cache,
-      // report pending otherwise so the caller can defer + warm asynchronously
+      // tight-budget callers (hosted chat agents): answer ONLY from cache —
+      // no LLM call on this path, ever; report pending so the caller can
+      // defer + warm asynchronously
+      const aHit = analyzeCached(files);
+      if (!aHit) {
+        res.json({ pending: true, reason: "analysis cache miss", web: "https://strata.axiqo.xyz" });
+        return;
+      }
+      analysis = aHit;
+      analyses.set(analysis.id, { analysis, files });
       const hit = impactCached(files, analysis, change.slice(0, 500));
       if (!hit) {
-        res.json({ pending: true, analysisId: analysis.id, web: "https://strata.axiqo.xyz" });
+        res.json({ pending: true, reason: "impact cache miss", analysisId: analysis.id, web: "https://strata.axiqo.xyz" });
         return;
       }
       imp = hit;
       modern = withModern ? modernizeCached(analysis, change.slice(0, 500)) : null;
     } else {
+      analysis = await analyze(files);
+      analyses.set(analysis.id, { analysis, files });
       imp = await impact(files, analysis, change.slice(0, 500));
       modern = withModern ? await modernize(files, analysis, change.slice(0, 500), imp) : null;
     }

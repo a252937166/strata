@@ -167,6 +167,9 @@ Respond with ONLY one JSON object, schema:
 
 /** Cache-only probes — let callers (hosted chat wrappers with tight execution
  *  budgets) answer instantly when a result exists and defer gracefully when not. */
+export function analyzeCached(files: SourceFile[]): Analysis | null {
+  return cacheGet<Analysis>(`analyze-${sha(JSON.stringify(files))}`);
+}
 export function impactCached(files: SourceFile[], analysis: Analysis, change: string): Impact | null {
   const hit = cacheGet<Impact>(`impact-${sha(analysis.id + "::" + change.trim().toLowerCase())}`);
   if (hit) hit.evidenceCheck = verifyImpactEvidence(files, hit);
