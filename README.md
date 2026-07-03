@@ -4,7 +4,7 @@
 ![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
 ![ci](https://github.com/a252937166/strata/actions/workflows/ci.yml/badge.svg)
 
-**Live demo:** https://strata.axiqo.xyz · **video:** https://youtu.be/fn7Xone94zM · built for **UK AI Agent Hackathon EP5 × Conduct**, Conduct Track *“Make Legacy Move”*.
+**Live demo:** https://strata.axiqo.xyz · **video:** https://youtu.be/7os33mRBlNY · built for **UK AI Agent Hackathon EP5 × Conduct**, Conduct Track *“Make Legacy Move”*.
 
 Large enterprises run on code written decades ago by people who have left. When the business needs a change — a new rate, a new regulation, a new grade — someone has to answer *“what will this touch?”* by reading undocumented source. That answer costs weeks of specialist time, per change.
 
@@ -71,7 +71,7 @@ web/               Vite + React console (zero UI dependencies; the force-graph i
 
 - The agent is **model-agnostic** — set `STRATA_LLM_BASE / STRATA_LLM_KEY / STRATA_LLM_MODEL` to any OpenAI-compatible endpoint (local Ollama works).
 - Every model output is schema-shaped JSON with **runtime validation and a structured repair loop**; line citations come from a numbered listing and are **verified against the source** (`evidenceCheck` in every impact response).
-- Real tool execution: `POST /api/issues/github` files the impact plan as GitHub issues — `GITHUB_TOKEN` + `GITHUB_REPO` for live mode, dry-run payloads otherwise.
+- Real tool execution: `POST /api/issues/github` files the impact plan as GitHub issues — `GITHUB_TOKEN` + `GITHUB_REPO` for live mode, dry-run payloads otherwise. **Live on the demo backend** — see [issues #1–#4](https://github.com/a252937166/strata/issues?q=label%3Astrata) filed by the agent.
 - Analyses are cached by content hash: the bundled site is instant, pasted listings run live.
 
 ## Scale path — from a 336-line demo to an enterprise repo
@@ -87,4 +87,4 @@ The demo runs on a single listing so judges can verify every claim in one click;
 
 ## Honest limits
 
-Rule extraction and impact tracing are advisory — that is the point of the review gate. The bundled corpus is synthetic-but-faithful COBOL (written to be plausibly 1987, incl. the folklore comments); paste your own listing to test the agent on real material, up to the demo’s 4,000-line cap (no repo-scale indexing yet). Live requests on novel changes take ~1–3 minutes with a reasoning model; GitHub filing defaults to dry-run unless a token is configured.
+Rule extraction and impact tracing are advisory — that is the point of the review gate. The bundled corpus is synthetic-but-faithful COBOL (written to be plausibly 1987, incl. the folklore comments); paste your own listing to test the agent on real material, up to the demo’s 4,000-line cap (no repo-scale indexing yet). Live requests on novel changes take ~1–3 minutes with a reasoning model; GitHub filing is live on the demo backend (dry-run without a token).
