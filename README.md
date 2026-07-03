@@ -14,15 +14,17 @@ STRATA is an AI agent that turns that archaeology into an afternoon, **with a hu
 2. **DECODE** — the agent extracts every business rule with line-level evidence: the overtime cap from a 1991 memo, the “temporary” 2009 tax patch, the Y2K pivot-66 windowing, the dead-but-load-bearing copybook field.
 3. **MAP** — an interactive dependency graph of paragraphs, DB2 tables, files and constant blocks — the edges actually present in the code.
 4. **IMPACT** — type a business change in plain language. The agent traces the blast radius (direct / coupled / re-verify) with quoted evidence — **every citation machine-verified against the real source lines** — an ordered engineering plan, and a **regression contract**: the rules that must *not* change.
-5. **MODERNIZE** — for each affected paragraph the agent writes modern TypeScript plus **characterization tests** that pin today’s behavior. Every module requires an explicit human **approve / reject**; the approved set exports as a change dossier (`obligation → evidence → decision → artifact`) with **GitHub issue filing (dry-run or live)** and a **rollback plan**.
+5. **MODERNIZE** — for each affected paragraph the agent writes modern TypeScript plus **characterization tests** that pin today’s behavior. Every module requires an explicit human **approve / reject**; the approved set exports as a change dossier (`obligation → evidence → decision → artifact`) with **GitHub issue filing (dry-run or live)** and a **rollback plan**. The gate is hard: nothing exports and no tool fires until every module carries an explicit decision.
 
 ## Agent access (ASI:One / Agentverse)
 
 The core flow runs **conversation-first** — no custom frontend required:
 
-- **Chat Protocol agent:** [`agentverse/strata_agent.py`](agentverse/strata_agent.py) (deploy notes in [`agentverse/README.md`](agentverse/README.md))
+- **Chat Protocol agent:** [`agentverse/strata_agent.py`](agentverse/strata_agent.py) (deploy notes in [`agentverse/README.md`](agentverse/README.md)) — registered and live on Agentverse (hosted)
 - **Agent name:** `strata-legacy-xray`
-- **Agent address / Agentverse profile / ASI:One session:** _pending registration — see agentverse/README.md_
+- **Agent address:** `agent1qt7djc5s4m59xqzkg7en8v30afdwrejkqxgs2emdcza99y9wug32w7xzvz6`
+- **Agentverse profile:** https://agentverse.ai/agents/details/agent1qt7djc5s4m59xqzkg7en8v30afdwrejkqxgs2emdcza99y9wug32w7xzvz6/profile
+- **Chat with it on ASI:One:** https://asi1.ai/ai/agent1qt7djc5s4m59xqzkg7en8v30afdwrejkqxgs2emdcza99y9wug32w7xzvz6 — send a showcase change, the dossier comes back in seconds (novel changes are excavated live and served on re-ask ~2 min later; hosted chat execution budgets are tight, so the wrapper is cache-first with async warming)
 - **One-shot API the agent wraps:**
 
 ```bash
@@ -71,6 +73,17 @@ web/               Vite + React console (zero UI dependencies; the force-graph i
 - Every model output is schema-shaped JSON with **runtime validation and a structured repair loop**; line citations come from a numbered listing and are **verified against the source** (`evidenceCheck` in every impact response).
 - Real tool execution: `POST /api/issues/github` files the impact plan as GitHub issues — `GITHUB_TOKEN` + `GITHUB_REPO` for live mode, dry-run payloads otherwise.
 - Analyses are cached by content hash: the bundled site is instant, pasted listings run live.
+
+## Scale path — from a 336-line demo to an enterprise repo
+
+The demo runs on a single listing so judges can verify every claim in one click; the architecture was chosen so each piece scales past that:
+
+1. **Chunk by compilation unit.** COBOL programs and copybooks are natural analysis units. Each program gets its own `analyze` pass (rules + local graph), exactly like the bundled corpus today — the 4,000-line cap is per unit, not per estate.
+2. **Merge graphs, not prompts.** Cross-program edges (CALL, shared copybooks, DB2 tables, JCL job order) are join keys, not LLM output: node ids are deterministic, so per-program graphs union into an estate-wide map without re-prompting.
+3. **Impact = subgraph retrieval + focused reasoning.** For a change request, walk the merged graph to the k-hop neighborhood, then hand only those units to the impact stage — token cost scales with blast radius, not codebase size.
+4. **Content-hash caching already does the bookkeeping.** Unchanged units keep their analyses forever; a nightly re-index only pays for files that changed — the same `sha(content)` keys used today.
+5. **Review shards by ownership.** The approval gate is per module today; at estate scale gates group by paragraph owner / team, and the dossier records every decision the same way.
+6. **The verifier is O(citations).** Line-grounding checks are pure string work against the indexed source — they stay instant at any scale, which is what keeps a big-estate dossier trustworthy.
 
 ## Honest limits
 

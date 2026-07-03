@@ -249,6 +249,10 @@ export default function App() {
   );
 
   const approvedCount = Object.values(decisions).filter((d) => d === "approved").length;
+  const decidedCount = Object.values(decisions).filter(Boolean).length;
+  // hard review gate: no export, no tool execution, until EVERY module carries
+  // an explicit human decision and at least one is approved
+  const gateOpen = modern ? decidedCount === modern.modules.length && approvedCount > 0 : false;
 
   const exportDossier = () => {
     if (!analysis || !impactRes || !modern) return;
@@ -585,8 +589,8 @@ export default function App() {
                 <div className="interp-label">AGENT READS THE CHANGE AS</div>
                 <div className="interp-text">{impactRes.interpretation}</div>
                 {impactRes.evidenceCheck && (
-                  <div className="evcheck mono" title="every citation is checked against the actual source lines">
-                    ✓ {impactRes.evidenceCheck.verified}/{impactRes.evidenceCheck.checked} citations verified against source
+                  <div className="evcheck mono" title="file exists · line range valid · quote found — failures are flagged, never trusted">
+                    citations checked against source: {impactRes.evidenceCheck.verified} passed · {impactRes.evidenceCheck.checked - impactRes.evidenceCheck.verified} flagged
                   </div>
                 )}
                 <div className="estimate">
@@ -612,7 +616,7 @@ export default function App() {
                           className="blast-evidence mono"
                           onClick={() => { setFocus({ file: b.evidence.file, lines: b.evidence.lines }); document.getElementById("site")?.scrollIntoView({ behavior: "smooth" }); }}
                         >
-                          ▤ {b.evidence.file} L{b.evidence.lines[0]}–{b.evidence.lines[1]}{b.evidence.verified && <span className="ev-tick" title="quote verified in source"> ✓</span>} · “{b.evidence.quote.slice(0, 80)}{b.evidence.quote.length > 80 ? "…" : ""}”
+                          ▤ {b.evidence.file} L{b.evidence.lines[0]}–{b.evidence.lines[1]}{b.evidence.verified && <span className="ev-tick" title="quote found within the cited source lines"> ✓</span>} · “{b.evidence.quote.slice(0, 80)}{b.evidence.quote.length > 80 ? "…" : ""}”
                         </button>
                       </div>
                     );
@@ -694,15 +698,17 @@ export default function App() {
             </div>
           ))}
           <div className="dossier-bar">
-            <div className="dossier-count">
-              {approvedCount}/{modern.modules.length} modules approved
+            <div className="dossier-count" title="the gate opens only when every module carries an explicit decision">
+              {decidedCount}/{modern.modules.length} decided · {approvedCount} approved
             </div>
-            <button className="btn-dig" disabled={approvedCount === 0} onClick={exportDossier}>
+            <button className="btn-dig" disabled={!gateOpen} onClick={exportDossier}
+              title={gateOpen ? "" : "decide every module (approve/reject) first"}>
               ⬇ EXPORT CHANGE DOSSIER (.md)
             </button>
             <button
               className="btn-dig"
-              disabled={approvedCount === 0 || filing}
+              title={gateOpen ? "" : "decide every module (approve/reject) first"}
+              disabled={!gateOpen || filing}
               onClick={async () => {
                 if (!analysis || !impactRes) return;
                 setFiling(true);

@@ -62,6 +62,35 @@ def clean_change(text: str) -> str:
     return re.sub(r"^(\s*@\S+\s*)+", "", text).strip()
 
 
+META_RE = re.compile(
+    r"\b(purpose|capabilit\w*|who are you|what do you do|what can you do|"
+    r"your function|how do you work|introduce yourself|chat protocol|test your)\b",
+    re.I,
+)
+
+
+def is_meta_question(text: str) -> bool:
+    """Greetings / self-description probes get the HELP card, not an excavation."""
+    t = text.lower().strip()
+    if len(t) < 8 or t in {"hi", "hello", "help", "what can you do"}:
+        return True
+    return bool(META_RE.search(t)) and (t.endswith("?") or len(t.split()) <= 16)
+
+
+CHANGE_RE = re.compile(
+    r"\b(raise|lower|increase|reduce|change|add|remove|introduce|move|switch|update|"
+    r"replace|cap|uncap|multiplier|rate|grade|pension|tax|regulation|overtime|"
+    r"deduction|bonus|payroll|policy|rule|band|threshold|effective)\b",
+    re.I,
+)
+
+
+def looks_like_change(text: str) -> bool:
+    """Only real change requests are worth an excavation (and a warm LLM run) —
+    everything else gets the HELP card instead of a confusing pending reply."""
+    return bool(CHANGE_RE.search(text))
+
+
 def run_strata(change: str) -> str:
     """Cache-first agent run (hosted execution budgets are tight):
     answered from cache -> full dossier now; otherwise the backend is warmed
@@ -97,7 +126,7 @@ def run_strata(change: str) -> str:
     head = (
         f"**STRATA run complete** — {counts.get('rules', '?')} rules, "
         f"{counts.get('nodes', '?')} nodes, {counts.get('edges', '?')} edges; "
-        f"{ev.get('verified', '?')}/{ev.get('checked', '?')} citations verified against source.\n\n"
+        f"{ev.get('verified', '?')}/{ev.get('checked', '?')} citations passed the source check (failures are flagged, never trusted).\n\n"
     )
     # tool execution: turn the plan into GitHub issue payloads (dry-run unless the
     # backend has GITHUB_TOKEN/GITHUB_REPO configured, then live with dryRun:false)
@@ -146,7 +175,7 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
             await ctx.send(sender, text_msg(HELP))
         elif isinstance(item, TextContent):
             change = clean_change(item.text)
-            if len(change) < 8 or change.lower() in {"hi", "hello", "help", "what can you do"}:
+            if is_meta_question(change) or not looks_like_change(change):
                 await ctx.send(sender, text_msg(HELP))
                 continue
             ctx.logger.info(f"change request from {sender}: {change[:120]}")

@@ -107,11 +107,11 @@ export function buildDossier(
     `- **System:** ${analysis.summary.headline}`,
     `- **Change:** ${imp.change}`,
     `- **Interpretation:** ${imp.interpretation}`,
-    imp.evidenceCheck ? `- **Evidence check:** ${imp.evidenceCheck.verified}/${imp.evidenceCheck.checked} citations verified against source` : ``,
+    imp.evidenceCheck ? `- **Evidence check:** ${imp.evidenceCheck.verified}/${imp.evidenceCheck.checked} citations passed the source check (failed citations are flagged)` : ``,
     ``,
     `## Blast radius (${imp.blastRadius.length})`,
     ...imp.blastRadius.map((b) =>
-      `- **[${b.severity.toUpperCase()}] ${ruleTitle(b.ruleId)}** — ${b.why}\n  - evidence: \`${b.evidence.file}\` L${b.evidence.lines[0]}-${b.evidence.lines[1]}${b.evidence.verified ? " ✓" : ""}: "${b.evidence.quote}"`),
+      `- **[${b.severity.toUpperCase()}] ${ruleTitle(b.ruleId)}** — ${b.why}\n  - evidence: \`${b.evidence.file}\` L${b.evidence.lines[0]}-${b.evidence.lines[1]}${b.evidence.verified ? " ✓checked" : " ⚑flagged"}: "${b.evidence.quote}"`),
     ``,
     `## Regression contract — must NOT change (${imp.untouched.length})`,
     ...imp.untouched.map((id) => `- ${ruleTitle(id)}`),
