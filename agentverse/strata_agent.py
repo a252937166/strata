@@ -17,6 +17,7 @@ Example prompts to try in ASI:One:
   - "Add a new grade G8 for logistics team leads at 22.40/hour."
 """
 
+import re
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -55,15 +56,40 @@ def text_msg(text: str, end_session: bool = False) -> ChatMessage:
     return ChatMessage(timestamp=datetime.now(timezone.utc), msg_id=uuid4(), content=content)
 
 
+def clean_change(text: str) -> str:
+    """ASI:One prefixes messages with @mentions — strip them so showcase
+    changes hit the precomputed cache exactly."""
+    return re.sub(r"^(\s*@\S+\s*)+", "", text).strip()
+
+
 def run_strata(change: str) -> str:
-    """One-shot agent run: analyze -> impact -> modernize -> dossier -> issue tool."""
+    """Cache-first agent run (hosted execution budgets are tight):
+    answered from cache -> full dossier now; otherwise the backend is warmed
+    asynchronously and the user is told to re-ask in a couple of minutes."""
     r = requests.post(
         STRATA_API,
-        json={"change": change, "modernize": True},
-        timeout=560,
+        json={"change": change, "modernize": True, "cachedOnly": True},
+        timeout=30,
     )
     r.raise_for_status()
     data = r.json()
+    if data.get("pending"):
+        # fire-and-forget: kick the full run so the cache warms while we reply
+        try:
+            requests.post(STRATA_API, json={"change": change, "modernize": True}, timeout=2)
+        except requests.exceptions.RequestException:
+            pass  # expected — the backend keeps processing after we disconnect
+        return (
+            "**Excavation started.** This is a novel change, so the agent is reading the "
+            "legacy listing and tracing the blast radius live — that takes about 1–3 minutes "
+            "with a reasoning model.\n\n"
+            "Ask me the **same change again in ~2 minutes** and I will return the full dossier "
+            "instantly. Or watch it live on the visual console: " + WEB + "\n\n"
+            "Instant examples (precomputed):\n"
+            "- Raise the overtime multiplier from 1.5x to 1.75x for weekday overtime, effective next pay week.\n"
+            "- New regulation: employee pension contributions must also be deducted for National Insurance purposes (NI moves from gross basis to pension-adjusted basis).\n"
+            "- Add a new grade G8 for logistics team leads at 22.40/hour, on the standard pension scheme."
+        )
     dossier = data.get("dossier", "")
     counts = data.get("counts", {})
     impact = data.get("impact") or {}
@@ -119,19 +145,11 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
         if isinstance(item, StartSessionContent):
             await ctx.send(sender, text_msg(HELP))
         elif isinstance(item, TextContent):
-            change = item.text.strip()
+            change = clean_change(item.text)
             if len(change) < 8 or change.lower() in {"hi", "hello", "help", "what can you do"}:
                 await ctx.send(sender, text_msg(HELP))
                 continue
             ctx.logger.info(f"change request from {sender}: {change[:120]}")
-            await ctx.send(
-                sender,
-                text_msg(
-                    "Excavating… reading the legacy listing, tracing the blast radius and "
-                    "writing the dossier. Novel changes take 1–3 minutes (cached showcase "
-                    "changes return instantly)."
-                ),
-            )
             try:
                 await ctx.send(sender, text_msg(run_strata(change), end_session=True))
             except Exception as e:  # noqa: BLE001 — report, never crash the agent

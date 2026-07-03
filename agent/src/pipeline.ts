@@ -165,6 +165,17 @@ Respond with ONLY one JSON object, schema:
  "risks":[str],
  "estimate":{"legacyWay":str,"withStrata":str}}`;
 
+/** Cache-only probes — let callers (hosted chat wrappers with tight execution
+ *  budgets) answer instantly when a result exists and defer gracefully when not. */
+export function impactCached(files: SourceFile[], analysis: Analysis, change: string): Impact | null {
+  const hit = cacheGet<Impact>(`impact-${sha(analysis.id + "::" + change.trim().toLowerCase())}`);
+  if (hit) hit.evidenceCheck = verifyImpactEvidence(files, hit);
+  return hit;
+}
+export function modernizeCached(analysis: Analysis, change: string): Modernization | null {
+  return cacheGet<Modernization>(`modern-${sha(analysis.id + "::" + change.trim().toLowerCase())}`);
+}
+
 export async function impact(files: SourceFile[], analysis: Analysis, change: string): Promise<Impact> {
   const key = `impact-${sha(analysis.id + "::" + change.trim().toLowerCase())}`;
   const hit = cacheGet<Impact>(key);

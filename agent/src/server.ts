@@ -6,8 +6,10 @@ import {
   ROOT,
   analyze,
   impact,
+  impactCached,
   loadCorpus,
   modernize,
+  modernizeCached,
   type Analysis,
   type Impact,
   type SourceFile,
@@ -107,10 +109,25 @@ app.post("/api/run", async (req, res) => {
         ? req.body.files.map((f: SourceFile) => ({ name: String(f.name), content: String(f.content) }))
         : loadCorpus();
     const withModern = req.body?.modernize !== false; // default true
+    const cachedOnly = req.body?.cachedOnly === true;
     const analysis = await analyze(files);
     analyses.set(analysis.id, { analysis, files });
-    const imp = await impact(files, analysis, change.slice(0, 500));
-    const modern = withModern ? await modernize(files, analysis, change.slice(0, 500), imp) : null;
+    let imp: Impact;
+    let modern = null;
+    if (cachedOnly) {
+      // tight-budget callers (hosted chat agents): answer only from cache,
+      // report pending otherwise so the caller can defer + warm asynchronously
+      const hit = impactCached(files, analysis, change.slice(0, 500));
+      if (!hit) {
+        res.json({ pending: true, analysisId: analysis.id, web: "https://strata.axiqo.xyz" });
+        return;
+      }
+      imp = hit;
+      modern = withModern ? modernizeCached(analysis, change.slice(0, 500)) : null;
+    } else {
+      imp = await impact(files, analysis, change.slice(0, 500));
+      modern = withModern ? await modernize(files, analysis, change.slice(0, 500), imp) : null;
+    }
     res.json({
       analysisId: analysis.id,
       summary: analysis.summary,
