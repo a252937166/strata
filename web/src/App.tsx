@@ -164,12 +164,22 @@ export default function App() {
     setTimeout(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
 
   /* ---------- stage 1: excavate ---------- */
-  const excavate = async () => {
+  const excavate = async (files?: SourceFile[]) => {
     setScanning(true);
     setErr(null);
+    // a fresh dig resets everything downstream
+    setAnalysis(null);
+    setImpactRes(null);
+    setModern(null);
+    setDecisions({});
+    setIssuesRes(null);
+    setChange("");
+    setFocus(null);
+    setSelectedNode(null);
+    if (files) setCorpus(files);
     const t0 = Date.now();
     try {
-      const a = await api.analyze();
+      const a = await api.analyze(files);
       // theatrical minimum so the scan reads as a scan
       const wait = Math.max(0, 3600 - (Date.now() - t0));
       await new Promise((r) => setTimeout(r, wait));
@@ -181,6 +191,17 @@ export default function App() {
     } finally {
       setScanning(false);
     }
+  };
+
+  /* ---------- paste-your-own-listing ---------- */
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteName, setPasteName] = useState("PASTED.CBL");
+  const [pasteText, setPasteText] = useState("");
+  const pasteLines = pasteText ? pasteText.split("\n").length : 0;
+  const bundledSite = corpus.some((f) => f.name === "PAYROLL01.CBL");
+  const excavatePasted = () => {
+    if (pasteLines < 5 || pasteLines > 4000) return;
+    excavate([{ name: pasteName.trim() || "PASTED.CBL", content: pasteText }]);
   };
 
   /* ---------- stage 4: impact ---------- */
@@ -403,7 +424,7 @@ export default function App() {
             <CrtCode files={corpus} focus={focus} height={470} />
           </div>
           <div className="dig-side">
-            {!scanning && !analysis && (
+            {!scanning && !analysis && !pasteOpen && (
               <>
                 <div className="dig-brief">
                   <div className="brief-row"><span>site</span><b>NORTHFIELD MFG · weekly payroll</b></div>
@@ -411,20 +432,44 @@ export default function App() {
                   <div className="brief-row"><span>last uprated</span><b>04/2019 (!)</b></div>
                   <div className="brief-row"><span>documentation</span><b className="bad">none found</b></div>
                 </div>
-                <button className="btn-dig big" onClick={excavate}>⛏ EXCAVATE — run the agent</button>
-                <div className="dig-hint">The agent reads every line, extracts the business rules with evidence, and maps the dependency graph. Nothing is hardcoded — paste your own listing later if you don’t believe us.</div>
+                <button className="btn-dig big" onClick={() => excavate()}>⛏ EXCAVATE — run the agent</button>
+                <button className="btn-ghost paste-toggle" onClick={() => setPasteOpen(true)}>▤ or paste your own listing — the agent runs live on it</button>
+                <div className="dig-hint">The agent reads every line, extracts the business rules with evidence, and maps the dependency graph. Nothing is hardcoded.</div>
               </>
+            )}
+            {!scanning && !analysis && pasteOpen && (
+              <div className="paste-panel">
+                <div className="paste-head">
+                  <span>YOUR EXCAVATION SITE</span>
+                  <input className="paste-name mono" value={pasteName} onChange={(e) => setPasteName(e.target.value)} spellCheck={false} />
+                </div>
+                <textarea
+                  className="paste-text mono"
+                  placeholder={"Paste any legacy listing here — COBOL, PL/I, RPG, old Java, stored procedures…\nThe agent extracts rules, maps dependencies and takes change requests on it."}
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  spellCheck={false}
+                />
+                <div className="paste-meta mono">
+                  <span className={pasteLines > 4000 ? "bad" : ""}>{pasteLines} / 4000 lines</span>
+                  <span>live model run · ~2–4 min</span>
+                </div>
+                <button className="btn-dig big" disabled={pasteLines < 5 || pasteLines > 4000} onClick={excavatePasted}>
+                  ⛏ EXCAVATE MY CODE — live
+                </button>
+                <button className="btn-ghost" onClick={() => setPasteOpen(false)}>← back to the bundled site</button>
+              </div>
             )}
             {scanning && (
               <div className="scan-console">
                 <Typewriter lines={[
                   "mount TSO volume … ok",
-                  "chunking PAYROLL01.CBL … 316 lines",
-                  "chunking EMPREC.CPY … 20 lines",
-                  "carbon-dating comments … 1987–2011 detected",
+                  ...corpus.map((f) => `chunking ${f.name} … ${f.content.split("\n").length} lines`),
+                  bundledSite ? "carbon-dating comments … 1987–2011 detected" : "carbon-dating comments … analyzing era markers",
+                  bundledSite ? "extracting business rules …" : "live model run — novel code takes 2–4 minutes …",
                   "extracting business rules …",
-                  "tracing PERFORM / GO TO edges …",
-                  "resolving DB2 tables …",
+                  "tracing control-flow edges …",
+                  "resolving tables & files …",
                   "capturing institutional knowledge …",
                 ]} />
               </div>
@@ -439,6 +484,7 @@ export default function App() {
                   <div><b className="bad"><CountUp value={analysis.rules.filter((r) => r.risk === "high").length} /></b><span>high-risk</span></div>
                 </div>
                 <button className="btn-ghost" onClick={() => scrollTo(decodeRef)}>▼ descend to the rules</button>
+                <button className="btn-ghost paste-toggle" onClick={() => { setPasteOpen(true); setAnalysis(null); setStage(0); }}>▤ dig a different site — paste your own listing</button>
               </div>
             )}
           </div>
@@ -568,11 +614,13 @@ export default function App() {
               </button>
             </div>
             <div className="impact-examples">
-              {SHOWCASE_CHANGES.map((c, i) => (
+              {bundledSite ? SHOWCASE_CHANGES.map((c, i) => (
                 <button key={i} className="example-chip" disabled={impacting} onClick={() => runImpact(c)}>
                   {["⏱ overtime 1.75×", "⚖ NI regulation shift", "▤ new grade G8"][i]}
                 </button>
-              ))}
+              )) : (
+                <span className="impact-note mono">your own site — describe any change to it in plain language (live run, ~1–3 min)</span>
+              )}
             </div>
           </div>
 

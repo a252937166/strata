@@ -38,7 +38,7 @@ curl -X POST https://strata.axiqo.xyz/api/run \
 
 **Option A — conversation (ASI:One or curl):** run the `curl` above (or chat with the agent once registered). The three showcase changes return instantly from cache; novel changes run live in ~1–3 min.
 
-**Option B — web console:** open https://strata.axiqo.xyz → *START DIGGING* → click a rule card (jumps to the exact source lines) → type or pick a change → *TRACE THE BLAST RADIUS* → *MODERNIZE* → approve a module → *EXPORT CHANGE DOSSIER* / *FILE GITHUB ISSUES*.
+**Option B — web console:** open https://strata.axiqo.xyz → *EXCAVATE* (or **paste your own legacy listing** — the agent runs live on it, ~2–4 min, 4,000-line cap) → click a rule card (jumps to the exact source lines) → type or pick a change → *TRACE THE BLAST RADIUS* → *MODERNIZE* → decide every module → *EXPORT CHANGE DOSSIER* / *FILE GITHUB ISSUES*.
 
 **Option C — local:**
 

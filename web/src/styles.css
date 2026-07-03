@@ -575,6 +575,26 @@ body::before {
 .dossier-count { font-family: var(--mono); font-size: 14px; color: var(--amber-hot); }
 .dossier-note { color: var(--muted); font-size: 12px; }
 
+.paste-toggle { margin-top: 10px; }
+.paste-panel { display: flex; flex-direction: column; gap: 10px; }
+.paste-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: 12px; letter-spacing: .14em; color: var(--amber-hot);
+}
+.paste-name {
+  background: #10141d; border: 1px solid var(--line); border-radius: 8px;
+  color: var(--fg); font-size: 13px; padding: 6px 10px; width: 180px;
+}
+.paste-text {
+  background: #0b0e14; border: 1px solid var(--line); border-radius: 10px;
+  color: #ffd28a; font-size: 12.5px; line-height: 1.55;
+  min-height: 260px; padding: 12px 14px; resize: vertical; white-space: pre;
+}
+.paste-text:focus { outline: none; border-color: rgba(255,180,84,.55); }
+.paste-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.paste-meta .bad { color: #ff7676; }
+.impact-note { font-size: 12.5px; color: var(--muted); }
+
 .evcheck {
   margin-top: 10px; font-size: 12px; color: #59d3a0;
   border: 1px solid rgba(89,211,160,.35); border-radius: 8px;
