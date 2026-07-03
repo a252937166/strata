@@ -14,7 +14,8 @@ export function llmAvailable(): boolean {
 }
 
 function chatOnce(system: string, user: string, maxTokens: number): Promise<string> {
-  const url = new URL("/chat/completions", BASE_URL);
+  // relative join so a base with a path (e.g. https://host/v1) keeps its prefix
+  const url = new URL("chat/completions", BASE_URL.endsWith("/") ? BASE_URL : `${BASE_URL}/`);
   const body = JSON.stringify({
     model: MODEL,
     messages: [
