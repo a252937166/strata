@@ -4,7 +4,7 @@
 ![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
 ![ci](https://github.com/a252937166/strata/actions/workflows/ci.yml/badge.svg)
 
-**Live demo:** https://strata.axiqo.xyz · **video:** https://youtu.be/7os33mRBlNY · built for **UK AI Agent Hackathon EP5 × Conduct**, Conduct Track *“Make Legacy Move”*.
+**Live demo:** https://strata.axiqo.xyz · **video:** https://youtu.be/yD3TtCx7PiI · built for **UK AI Agent Hackathon EP5 × Conduct**, Conduct Track *“Make Legacy Move”*.
 
 Large enterprises run on code written decades ago by people who have left. When the business needs a change — a new rate, a new regulation, a new grade — someone has to answer *“what will this touch?”* by reading undocumented source. That answer costs weeks of specialist time, per change.
 
