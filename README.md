@@ -1,6 +1,6 @@
 # STRATA — X-ray for legacy systems
 
-**Live demo:** https://strata.axiqo.xyz · built for **UK AI Agent Hackathon EP5 × Conduct**, Conduct Track *“Make Legacy Move”*.
+**Live demo:** https://strata.axiqo.xyz · **video:** https://youtu.be/WvKXTKfEhRM · built for **UK AI Agent Hackathon EP5 × Conduct**, Conduct Track *“Make Legacy Move”*.
 
 Large enterprises run on code written decades ago by people who have left. When the business needs a change — a new rate, a new regulation, a new grade — someone has to answer *“what will this touch?”* by reading undocumented source. That answer costs weeks of specialist time, per change.
 

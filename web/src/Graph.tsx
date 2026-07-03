@@ -188,6 +188,9 @@ export default function Graph({
         ctx.fillText(n.label.length > 20 ? n.label.slice(0, 19) + "…" : n.label, n.x, n.y + n.r + 14);
       }
 
+      // expose live node positions for the demo recorder
+      (window as unknown as { __nodes?: unknown }).__nodes = sim.map((n) => ({ id: n.id, x: n.x, y: n.y, r: n.r }));
+
       raf = requestAnimationFrame(step);
     }
 
