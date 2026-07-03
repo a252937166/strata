@@ -1,6 +1,6 @@
 {
  "change": "Add a new grade G8 for logistics team leads at 22.40/hour, on the standard pension scheme.",
- "interpretation": "Introduce a new pay grade 'G8' with base hourly rate 22.40. The grade uses the standard auto-enrolment pension scheme (5% employee, 3% employer), identical to existing grades G1–G5. The grade code 'G8' fits the existing 2-character field. The rate is stored as the 8th entry in the WS-GRADE-TABLE, using the same format as existing grades (code + 4-digit implied decimal rate). The number of grade occurrences must increase from 7 to 8, and all loops iterating over grades must be updated accordingly. The pension logic (legacy scheme only for G6/G7) remains unchanged and will correctly classify G8 as standard.",
+ "interpretation": "The grade table WS-GRADE-TABLE currently holds 7 entries (G1-G7) with hardcoded rates. To add G8 at $22.40/hr, we extend the table to 8 entries, add a new initialization filler for G8, and adjust the search loop in 300-GROSS. The pension logic (paragraph 550-PENSION) already applies the standard scheme to any grade not explicitly listed as G6 or G7, so G8 will automatically receive the standard 5% employee / 3% employer contribution, consistent with the requirement. No change to tax, NI, or other deductions is necessary.",
  "blastRadius": [
   {
    "ruleId": "R11",
@@ -9,31 +9,33 @@
     "300-gross"
    ],
    "severity": "direct",
-   "why": "The grade hourly rate table (WS-GRADE-INIT) and its associated OCCURS 7 clause and the lookup loop in 300-GROSS all hardcode the number of grades. Adding G8 requires expanding the table to 8 entries, inserting a new FILLER for G8, and changing the loop bound from 7 to 8.",
+   "why": "The grade rate table definition (OCCURS 7), its initialization data, and the search loop that iterates over grades must all be extended to accommodate G8 and return its hourly rate.",
    "evidence": {
     "file": "PAYROLL01.CBL",
     "lines": [
-     69,
-     75,
-     186
+     63,
+     75
     ],
-    "quote": "05 FILLER PIC X(6) VALUE 'G71995'. and PERFORM VARYING WS-IX FROM 1 BY 1 UNTIL WS-IX > 7"
+    "quote": "01 WS-GRADE-TABLE. ... 05 WS-GRADE-ENTRY OCCURS 7 TIMES. ... 05 FILLER PIC X(6) VALUE 'G71995'.",
+    "verified": true
    }
   },
   {
    "ruleId": "R14",
    "nodeIds": [
-    "550-pension"
+    "550-pension",
+    "ws-pension-rules"
    ],
    "severity": "verify",
-   "why": "The pension scheme assignment uses an explicit check for 'G6' OR 'G7' for the legacy scheme. All other grades (including the new G8) automatically receive the standard scheme, but this logic must be re-tested to confirm that G8 is not inadvertently caught by any other condition or future change.",
+   "why": "The pension paragraph explicitly lists G6/G7 for the legacy scheme; G8 will fall into the ELSE clause and receive standard contributions. No code change required, but behavior must be confirmed to match the 'standard pension scheme' requirement.",
    "evidence": {
     "file": "PAYROLL01.CBL",
     "lines": [
      287,
      293
     ],
-    "quote": "IF EMP-GRADE = 'G6' OR EMP-GRADE = 'G7' ... ELSE COMPUTE WS-PEN-EE ROUNDED = WS-GROSS * WS-PEN-EE-STD"
+    "quote": "IF EMP-GRADE = 'G6' OR EMP-GRADE = 'G7' ... ELSE ... WS-PEN-EE-STD ...",
+    "verified": true
    }
   }
  ],
@@ -61,50 +63,47 @@
  "plan": [
   {
    "step": 1,
-   "action": "Edit the WS-GRADE-TABLE OCCURS count to 8.",
-   "where": "PAYROLL01.CBL, WORKING-STORAGE SECTION, line 65",
-   "detail": "Change 'OCCURS 7 TIMES' to 'OCCURS 8 TIMES' so that the table can hold the new grade entry."
+   "action": "Modify grade table definition",
+   "where": "PAYROLL01.CBL, WORKING-STORAGE (lines 63-67)",
+   "detail": "Change OCCURS 7 TIMES to OCCURS 8 TIMES on the WS-GRADE-ENTRY definition."
   },
   {
    "step": 2,
-   "action": "Add the G8 FILLER entry in WS-GRADE-INIT.",
-   "where": "PAYROLL01.CBL, after line 75 (the G7 entry)",
-   "detail": "Insert new line: 05 FILLER PIC X(6) VALUE 'G82240'. This adds the grade code 'G8' and the rate 22.40 using the same 4-digit implied-decimal format as existing entries."
+   "action": "Add G8 initialization filler",
+   "where": "PAYROLL01.CBL, WORKING-STORAGE, after line 75",
+   "detail": "Insert a new line: 05 FILLER PIC X(6) VALUE 'G82240'. This sets G8 rate to 22.40 (integer 2240 cents)."
   },
   {
    "step": 3,
-   "action": "Update the grade lookup loop boundary.",
+   "action": "Update grade search loop",
    "where": "PAYROLL01.CBL, paragraph 300-GROSS, line 186",
-   "detail": "Change 'UNTIL WS-IX > 7' to 'UNTIL WS-IX > 8' so that the loop iterates over all eight grades."
+   "detail": "Change 'PERFORM VARYING WS-IX FROM 1 BY 1 UNTIL WS-IX > 7' to '... UNTIL WS-IX > 8'."
   },
   {
    "step": 4,
-   "action": "Recompile PAYROLL01.CBL and bind the program.",
-   "where": "Build environment",
-   "detail": "Compile the modified source and rebind DB2 package to activate the changes. Ensure consistent compile options."
+   "action": "Recompile and bind",
+   "where": "PAYROLL01.CBL",
+   "detail": "Recompile the program; no copybook changes needed, so no rebind of PAYRPT04 or extract job is required. The EMP-GRADE field (PIC X(2)) already accommodates G8."
   },
   {
    "step": 5,
-   "action": "Run regression tests for grade lookup and pension classification.",
-   "where": "Test environment",
-   "detail": "Verify that a timecard with an employee assigned grade G8 uses the 22.40 hourly rate, computes correct gross pay, and classifies the employee under the standard pension scheme (5% EE, 3% ER). Also confirm that G6/G7 still use legacy rates and that the new grade does not break any existing flows."
-  },
-  {
-   "step": 6,
-   "action": "Check any downstream reports or extracts for grade-list assumptions.",
-   "where": "PAYRPT04, the 1999 extract job, and any other report that enumerates grades",
-   "detail": "According to R1 and R3, some external jobs are sensitive to copybook layout. Although EMP-GRADE width is unchanged, these programs may hardcode the number of grades or reference specific grade codes; inspect and adjust if necessary."
+   "action": "Regression test",
+   "where": "Test suite for payroll calculation",
+   "detail": "Run existing regression tests covering grade lookup, gross pay, pension contributions, and payslip production. Verify that a timecard with a G8 employee calculates correctly: hourly rate 22.40, no legacy pension, standard auto-enrolment contributions."
   }
  ],
  "risks": [
-  "If the OCCURS 8 change and the extra FILLER are not perfectly aligned (e.g., off-by-one in the MOVE of WS-GRADE-INIT to WS-GRADE-TABLE), the table entries will be misaligned, silently mapping the wrong rate to the wrong grade.",
-  "Hardcoded loop bound 7 must be updated; missing any occurrence (e.g., another later loop or report that manually counts grades) will cause incomplete processing or subscript errors.",
-  "The pension scheme logic (R14) is correct as-is, but if a future maintainer adds G8 to the legacy check (e.g., by appending 'OR EMP-GRADE = G8'), the scheme would break for logistics team leads.",
-  "The grade rates remain hardcoded 2019 values except for the new G8—risk of inconsistent pay inflation remains, and the 22.40 rate may need to be manually uprated later without any central control.",
-  "Downstream reports like PAYRPT04 (R1) or the 1999 extract may have hardcoded grade ranges; verify them before release to avoid data truncation or incorrect totals."
+  "The OCCURS count and loop bound must be changed in unison; forgetting either leads to a table-bound error or failure to locate G8.",
+  "No other business rule is affected, but the hardcoded rate structure remains frozen at 2019 values for existing grades; future rate adjustments still require source edits.",
+  "Ensure that the new FILLER string matches the existing packed format (6 bytes, no implied decimal). A misplaced space or digit would silently corrupt the rate for G8."
  ],
  "estimate": {
-  "legacyWay": "1–2 days for a specialist to trace the copybook, table definitions, loop boundaries, and pension logic, plus half a day for isolated testing and regression.",
-  "withStrata": "~2 hours to review this dossier, make the three precise code edits, and run the targeted verification tests."
+  "legacyWay": "A payroll specialist would need to locate the grade table, understand the filler encoding, modify OCCURS and loop, recompile, and test pension logic – estimated 2-4 hours of focused work.",
+  "withStrata": "Using this dossier, a developer can execute the changes in 15-20 minutes; the verification of pension logic adds 10 minutes – total ~30 minutes."
+ },
+ "evidenceCheck": {
+  "checked": 2,
+  "verified": 2,
+  "failed": []
  }
 }

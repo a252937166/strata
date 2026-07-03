@@ -575,6 +575,21 @@ body::before {
 .dossier-count { font-family: var(--mono); font-size: 14px; color: var(--amber-hot); }
 .dossier-note { color: var(--muted); font-size: 12px; }
 
+.evcheck {
+  margin-top: 10px; font-size: 12px; color: #59d3a0;
+  border: 1px solid rgba(89,211,160,.35); border-radius: 8px;
+  display: inline-block; padding: 4px 10px; background: rgba(89,211,160,.07);
+}
+.ev-tick { color: #59d3a0; font-weight: 700; }
+.issues-result {
+  margin-top: 14px; border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 18px; background: rgba(255,214,102,.04);
+}
+.issues-head { font-size: 12.5px; color: var(--amber-hot); margin-bottom: 8px; }
+.issues-row { font-size: 13px; padding: 3px 0; }
+.issues-row a { color: #8fd3ff; text-decoration: none; border-bottom: 1px dotted rgba(143,211,255,.5); }
+.issues-row a:hover { border-bottom-style: solid; }
+
 /* ---------- misc ---------- */
 .toast.err {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 60;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   api, SHOWCASE_CHANGES,
-  type Analysis, type Impact, type Modernization, type SourceFile,
+  type Analysis, type Impact, type IssueResult, type Modernization, type SourceFile,
 } from "./api";
 import Graph, { type HighlightMap } from "./Graph";
 
@@ -145,6 +145,9 @@ export default function App() {
 
   const [modernizing, setModernizing] = useState(false);
   const [modern, setModern] = useState<Modernization | null>(null);
+
+  const [filing, setFiling] = useState(false);
+  const [issuesRes, setIssuesRes] = useState<IssueResult | null>(null);
   const [decisions, setDecisions] = useState<Record<string, "approved" | "rejected">>({});
   const [err, setErr] = useState<string | null>(null);
 
@@ -357,7 +360,7 @@ export default function App() {
             <button className="btn-dig" onClick={() => document.getElementById("site")?.scrollIntoView({ behavior: "smooth" })}>
               ⛏ START DIGGING
             </button>
-            <span className="hero-note">live agent · real 1987 payroll listing below</span>
+            <span className="hero-note">live agent · realistic 1987-style payroll listing below</span>
           </div>
         </div>
         <div className="hero-strata" aria-hidden>
@@ -389,7 +392,7 @@ export default function App() {
         <div className="stage-head">
           <span className="stage-no">01</span>
           <h2>Excavate the site</h2>
-          <p>A real-shape COBOL payroll module: 1987 original, DB2 rewrite in ’99, patches through 2011. The kind of file change requests go to die in.</p>
+          <p>A realistic 1987-style COBOL payroll module (synthetic, written to be faithful): DB2 rewrite in ’99, patches through 2011. The kind of file change requests go to die in.</p>
         </div>
         <div className="dig-grid">
           <div className={`dig-code ${scanning ? "scanning" : ""}`}>
@@ -581,6 +584,11 @@ export default function App() {
               <div className="interp-card">
                 <div className="interp-label">AGENT READS THE CHANGE AS</div>
                 <div className="interp-text">{impactRes.interpretation}</div>
+                {impactRes.evidenceCheck && (
+                  <div className="evcheck mono" title="every citation is checked against the actual source lines">
+                    ✓ {impactRes.evidenceCheck.verified}/{impactRes.evidenceCheck.checked} citations verified against source
+                  </div>
+                )}
                 <div className="estimate">
                   <div className="est old"><span>the old way</span><b>{impactRes.estimate.legacyWay}</b></div>
                   <div className="est-vs">→</div>
@@ -604,7 +612,7 @@ export default function App() {
                           className="blast-evidence mono"
                           onClick={() => { setFocus({ file: b.evidence.file, lines: b.evidence.lines }); document.getElementById("site")?.scrollIntoView({ behavior: "smooth" }); }}
                         >
-                          ▤ {b.evidence.file} L{b.evidence.lines[0]}–{b.evidence.lines[1]} · “{b.evidence.quote.slice(0, 80)}{b.evidence.quote.length > 80 ? "…" : ""}”
+                          ▤ {b.evidence.file} L{b.evidence.lines[0]}–{b.evidence.lines[1]}{b.evidence.verified && <span className="ev-tick" title="quote verified in source"> ✓</span>} · “{b.evidence.quote.slice(0, 80)}{b.evidence.quote.length > 80 ? "…" : ""}”
                         </button>
                       </div>
                     );
@@ -692,8 +700,35 @@ export default function App() {
             <button className="btn-dig" disabled={approvedCount === 0} onClick={exportDossier}>
               ⬇ EXPORT CHANGE DOSSIER (.md)
             </button>
+            <button
+              className="btn-dig"
+              disabled={approvedCount === 0 || filing}
+              onClick={async () => {
+                if (!analysis || !impactRes) return;
+                setFiling(true);
+                try { setIssuesRes(await api.fileIssues(analysis.id, impactRes.change || change, impactRes, false)); }
+                catch (e) { setIssuesRes({ dryRun: true, repo: "error", issues: [{ title: `failed: ${(e as Error).message}` }], payloads: [] }); }
+                finally { setFiling(false); }
+              }}
+            >
+              {filing ? "FILING…" : "⚑ FILE GITHUB ISSUES"}
+            </button>
             <div className="dossier-note">obligation → evidence → decision → artifact — with ready-to-file issues and a rollback plan. The audit trail writes itself.</div>
           </div>
+          {issuesRes && (
+            <div className="issues-result">
+              <div className="issues-head mono">
+                {issuesRes.dryRun
+                  ? `⚑ dry run — ${issuesRes.payloads.length} issue payloads built (set GITHUB_TOKEN/GITHUB_REPO for live filing)`
+                  : `⚑ filed ${issuesRes.issues.filter((i) => i.url).length}/${issuesRes.issues.length} issues → ${issuesRes.repo}`}
+              </div>
+              {issuesRes.issues.map((i, k) => (
+                <div key={k} className="issues-row">
+                  {i.url ? <a href={i.url} target="_blank" rel="noreferrer">#{i.number} {i.title}</a> : <span>{i.title}</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 

@@ -3,6 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chatJson } from "./llm.js";
+import {
+  validateAnalysis,
+  validateImpact,
+  validateModernization,
+  verifyImpactEvidence,
+  type EvidenceCheck,
+} from "./verify.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(here, "..", "..");
@@ -41,12 +48,14 @@ export interface Impact {
     nodeIds: string[];
     severity: "direct" | "indirect" | "verify";
     why: string;
-    evidence: { file: string; lines: [number, number]; quote: string };
+    evidence: { file: string; lines: [number, number]; quote: string; verified?: boolean };
   }[];
   untouched: string[];
   plan: { step: number; action: string; where: string; detail: string }[];
   risks: string[];
   estimate: { legacyWay: string; withStrata: string };
+  /** filled by the verifier: how many citations were checked against real source */
+  evidenceCheck?: EvidenceCheck;
 }
 
 export interface Modernization {
@@ -124,11 +133,13 @@ export async function analyze(files: SourceFile[]): Promise<Analysis> {
   const listing = numbered(files);
   const part1 = await chatJson<Pick<Analysis, "summary" | "rules">>(
     ANALYZE_RULES_SYSTEM, listing, 12000,
+    (v) => validateAnalysis({ ...v, nodes: [{}], edges: [] }),
   );
   const part2 = await chatJson<Pick<Analysis, "nodes" | "edges">>(
     ANALYZE_GRAPH_SYSTEM,
     `RULES:\n${JSON.stringify(part1.rules.map((r) => ({ id: r.id, title: r.title, paragraph: r.source.paragraph })))}\n\nNUMBERED SOURCE:\n${listing}`,
     12000,
+    (v) => validateAnalysis({ summary: { headline: "x" }, rules: [{ id: "x", title: "x", plainEnglish: "x", source: { file: "x", lines: [1, 1] } }], ...v }),
   );
   const analysis: Analysis = { id: key, ...part1, ...part2 };
   cachePut(key, analysis);
@@ -157,7 +168,10 @@ Respond with ONLY one JSON object, schema:
 export async function impact(files: SourceFile[], analysis: Analysis, change: string): Promise<Impact> {
   const key = `impact-${sha(analysis.id + "::" + change.trim().toLowerCase())}`;
   const hit = cacheGet<Impact>(key);
-  if (hit) return hit;
+  if (hit) {
+    hit.evidenceCheck = verifyImpactEvidence(files, hit);
+    return hit;
+  }
 
   const user = `PROPOSED CHANGE: ${change}
 
@@ -166,7 +180,9 @@ ${JSON.stringify({ rules: analysis.rules, nodes: analysis.nodes, edges: analysis
 
 NUMBERED SOURCE:
 ${numbered(files)}`;
-  const result = await chatJson<Impact>(IMPACT_SYSTEM, user, 10000);
+  const result = await chatJson<Impact>(IMPACT_SYSTEM, user, 10000, validateImpact);
+  // anti-hallucination pass: every citation is checked against the real source
+  result.evidenceCheck = verifyImpactEvidence(files, result);
   cachePut(key, result);
   return result;
 }
@@ -204,7 +220,7 @@ ${JSON.stringify(analysis.rules)}
 
 NUMBERED SOURCE:
 ${numbered(files)}`;
-  const result = await chatJson<Modernization>(MODERNIZE_SYSTEM, user, 12000);
+  const result = await chatJson<Modernization>(MODERNIZE_SYSTEM, user, 12000, validateModernization);
   cachePut(key, result);
   return result;
 }

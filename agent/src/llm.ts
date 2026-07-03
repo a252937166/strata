@@ -93,13 +93,30 @@ export function extractJson<T>(text: string): T {
   throw new Error("unbalanced JSON in reply");
 }
 
-/** Chat with retries; the reasoning model occasionally returns prose or truncates. */
-export async function chatJson<T>(system: string, user: string, maxTokens = 6000): Promise<T> {
+/**
+ * Chat with retries; the reasoning model occasionally returns prose or truncates.
+ * Optional `validate` runs semantic schema checks on the parsed JSON — when it
+ * reports problems, the next attempt is a structured repair prompt carrying the
+ * exact validation errors, so the model fixes shape instead of regenerating blind.
+ */
+export async function chatJson<T>(
+  system: string,
+  user: string,
+  maxTokens = 6000,
+  validate?: (v: T) => string[],
+): Promise<T> {
   let lastErr: Error | null = null;
+  let repair = "";
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const text = await chatOnce(system, user, maxTokens);
-      return extractJson<T>(text);
+      const text = await chatOnce(system, user + repair, maxTokens);
+      const parsed = extractJson<T>(text);
+      const problems = validate ? validate(parsed) : [];
+      if (problems.length) {
+        repair = `\n\nYOUR PREVIOUS REPLY FAILED SCHEMA VALIDATION:\n- ${problems.slice(0, 12).join("\n- ")}\nReturn the corrected complete JSON object only.`;
+        throw new Error(`schema: ${problems.slice(0, 4).join("; ")}`);
+      }
+      return parsed;
     } catch (e) {
       lastErr = e as Error;
       console.warn(`llm attempt ${attempt}/3 failed: ${lastErr.message.slice(0, 160)}`);

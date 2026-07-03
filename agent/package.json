@@ -8,7 +8,9 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "precompute": "tsx src/precompute.ts",
-    "bundle": "esbuild src/server.ts --bundle --platform=node --target=node16 --format=esm --outfile=dist/server.mjs --banner:js=\"import{createRequire as __cr}from'module';const require=__cr(import.meta.url);\""
+    "bundle": "esbuild src/server.ts --bundle --platform=node --target=node16 --format=esm --outfile=dist/server.mjs --banner:js=\"import{createRequire as __cr}from'module';const require=__cr(import.meta.url);\"",
+    "test": "tsx tests/golden.test.ts",
+    "typecheck": "tsc --noEmit --strict --module nodenext --moduleResolution nodenext --target es2021 --skipLibCheck src/server.ts src/precompute.ts tests/golden.test.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -9,8 +9,10 @@ import {
   loadCorpus,
   modernize,
   type Analysis,
+  type Impact,
   type SourceFile,
 } from "./pipeline.js";
+import { buildDossier, fileGithubIssues, githubConfigured } from "./tools.js";
 
 const app = express();
 app.use(cors());
@@ -26,6 +28,7 @@ app.get("/api/meta", (_req, res) => {
   res.json({
     name: "strata",
     llm: llmAvailable() ? "online" : "offline",
+    tools: { githubIssues: githubConfigured() ? "live" : "dry-run" },
     corpus: loadCorpus().map((f) => ({ name: f.name, loc: f.content.split("\n").length })),
   });
 });
@@ -81,6 +84,68 @@ app.post("/api/modernize", async (req, res) => {
       return;
     }
     const result = await modernize(entry.files, entry.analysis, String(change).slice(0, 500), imp);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
+/**
+ * One-shot agent run: analyze → impact → modernize → dossier, in a single call.
+ * This is the conversation-first entry point — the ASI:One / Agentverse wrapper
+ * and judges' curl both use it; no custom frontend required for the core flow.
+ */
+app.post("/api/run", async (req, res) => {
+  try {
+    const change = String(req.body?.change ?? "").trim();
+    if (change.length < 8) {
+      res.status(400).json({ error: "describe the business change (a sentence or two)" });
+      return;
+    }
+    const files: SourceFile[] =
+      Array.isArray(req.body?.files) && req.body.files.length
+        ? req.body.files.map((f: SourceFile) => ({ name: String(f.name), content: String(f.content) }))
+        : loadCorpus();
+    const withModern = req.body?.modernize !== false; // default true
+    const analysis = await analyze(files);
+    analyses.set(analysis.id, { analysis, files });
+    const imp = await impact(files, analysis, change.slice(0, 500));
+    const modern = withModern ? await modernize(files, analysis, change.slice(0, 500), imp) : null;
+    res.json({
+      analysisId: analysis.id,
+      summary: analysis.summary,
+      counts: { rules: analysis.rules.length, nodes: analysis.nodes.length, edges: analysis.edges.length },
+      impact: imp,
+      modernization: modern,
+      dossier: buildDossier(analysis, imp, modern),
+      web: "https://strata.axiqo.xyz",
+    });
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
+/**
+ * Tool execution: file the impact plan as GitHub issues.
+ * dryRun=true (or no GITHUB_TOKEN/GITHUB_REPO configured) returns the exact payloads;
+ * live mode creates real issues and returns their URLs.
+ */
+app.post("/api/issues/github", async (req, res) => {
+  try {
+    const { analysisId, change, impact: impBody, dryRun } = req.body ?? {};
+    const entry = analyses.get(String(analysisId));
+    if (!entry) {
+      res.status(404).json({ error: "analysis not found — run /api/analyze or /api/run first" });
+      return;
+    }
+    const imp = impBody as Impact | undefined;
+    if (!imp?.plan?.length) {
+      res.status(400).json({ error: "pass the impact object from /api/impact or /api/run" });
+      return;
+    }
+    const ruleTitle = (id: string) => entry.analysis.rules.find((r) => r.id === id)?.title ?? id;
+    // default dry-run; live only on explicit dryRun:false (and a configured token)
+    const result = await fileGithubIssues(String(change ?? imp.change ?? ""), imp, ruleTitle, dryRun !== false);
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: (e as Error).message });

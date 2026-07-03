@@ -27,7 +27,7 @@ export interface BlastHit {
   nodeIds: string[];
   severity: "direct" | "indirect" | "verify";
   why: string;
-  evidence: { file: string; lines: [number, number]; quote: string };
+  evidence: { file: string; lines: [number, number]; quote: string; verified?: boolean };
 }
 
 export interface Impact {
@@ -38,6 +38,14 @@ export interface Impact {
   plan: { step: number; action: string; where: string; detail: string }[];
   risks: string[];
   estimate: { legacyWay: string; withStrata: string };
+  evidenceCheck?: { checked: number; verified: number; failed: { where: string; reason: string }[] };
+}
+
+export interface IssueResult {
+  dryRun: boolean;
+  repo: string;
+  issues: { title: string; url?: string; number?: number }[];
+  payloads: { title: string; body: string; labels: string[] }[];
 }
 
 export interface ModernModule {
@@ -77,6 +85,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ analysisId, change, impact }),
     }).then((r) => j<Modernization>(r)),
+  fileIssues: (analysisId: string, change: string, impact: Impact, dryRun = true) =>
+    fetch("/api/issues/github", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ analysisId, change, impact, dryRun }),
+    }).then((r) => j<IssueResult>(r)),
 };
 
 export const SHOWCASE_CHANGES = [
