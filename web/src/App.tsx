@@ -272,6 +272,36 @@ export default function App() {
       `## Risks`,
       ...impactRes.risks.map((r) => `- ⚠ ${r}`),
       ``,
+      `## Execution assets — ready-to-file issues`,
+      `One issue per plan step, ready to paste into GitHub/Jira. Acceptance criteria bind each step to the regression contract above.`,
+      ...impactRes.plan.flatMap((p) => {
+        const hits = impactRes.blastRadius.filter((b) => {
+          const r = ruleById.get(b.ruleId);
+          return r && (p.detail.includes(r.title) || p.where.includes(b.evidence.file) || b.why.includes(p.where));
+        }).slice(0, 3);
+        const evid = (hits.length ? hits : impactRes.blastRadius.slice(0, 2)).map(
+          (b) => `> - [${b.severity.toUpperCase()}] ${ruleById.get(b.ruleId)?.title ?? b.ruleId} — ${b.evidence.file} L${b.evidence.lines[0]}-${b.evidence.lines[1]}`,
+        );
+        return [
+          ``,
+          `### Issue ${p.step}: ${p.action} (${p.where})`,
+          `> **${p.action}**`,
+          `>`,
+          `> ${p.detail}`,
+          `>`,
+          `> Blast-radius evidence:`,
+          ...evid,
+          `>`,
+          `> Acceptance:`,
+          `> - [ ] Change implemented at \`${p.where}\``,
+          `> - [ ] Characterization tests pass for every approved module`,
+          `> - [ ] Regression contract holds: ${impactRes.untouched.length} pinned rules verified unchanged`,
+        ];
+      }),
+      ``,
+      `## Rollback plan`,
+      `Revert plan steps in reverse order (${impactRes.plan.length} → 1). After rollback, re-run the characterization tests: they pin today's behavior, so a green run confirms the system is back to its pre-change state. The regression contract above is the rollback verification checklist.`,
+      ``,
       `## Reviewed modernization modules`,
       ...modern.modules.flatMap((m) => [
         ``,
@@ -662,7 +692,7 @@ export default function App() {
             <button className="btn-dig" disabled={approvedCount === 0} onClick={exportDossier}>
               ⬇ EXPORT CHANGE DOSSIER (.md)
             </button>
-            <div className="dossier-note">obligation → evidence → decision → artifact. The audit trail writes itself.</div>
+            <div className="dossier-note">obligation → evidence → decision → artifact — with ready-to-file issues and a rollback plan. The audit trail writes itself.</div>
           </div>
         </section>
       )}

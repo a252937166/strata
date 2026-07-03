@@ -10,7 +10,7 @@ STRATA is an AI agent that turns that archaeology into an afternoon, **with a hu
 2. **DECODE** — the agent extracts every business rule with line-level evidence: the overtime cap from a 1991 memo, the “temporary” 2009 tax patch, the Y2K pivot-66 windowing, the dead-but-load-bearing copybook field.
 3. **MAP** — an interactive dependency graph of paragraphs, DB2 tables, files and constant blocks — the edges actually present in the code.
 4. **IMPACT** — type a business change in plain language. The agent traces the blast radius (direct / coupled / re-verify) with quoted evidence, produces an ordered engineering plan, and — critically — a **regression contract**: the rules that must *not* change.
-5. **MODERNIZE** — for each affected paragraph the agent writes modern TypeScript plus **characterization tests** that pin today’s behavior. Every module requires an explicit human **approve / reject**; the approved set exports as a change dossier (`obligation → evidence → decision → artifact`).
+5. **MODERNIZE** — for each affected paragraph the agent writes modern TypeScript plus **characterization tests** that pin today’s behavior. Every module requires an explicit human **approve / reject**; the approved set exports as a change dossier (`obligation → evidence → decision → artifact`) that includes **ready-to-file GitHub/Jira issue drafts** (one per plan step, acceptance criteria bound to the regression contract) and a **rollback plan** verified by the characterization tests.
 
 ## Why this matches the Conduct brief
 
