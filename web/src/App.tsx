@@ -193,15 +193,28 @@ export default function App() {
     }
   };
 
-  /* ---------- paste-your-own-listing ---------- */
+  /* ---------- paste-your-own-listing (multi-file) ---------- */
   const [pasteOpen, setPasteOpen] = useState(false);
-  const [pasteName, setPasteName] = useState("PASTED.CBL");
-  const [pasteText, setPasteText] = useState("");
-  const pasteLines = pasteText ? pasteText.split("\n").length : 0;
+  const [pasteFiles, setPasteFiles] = useState<SourceFile[]>([{ name: "MAIN.CBL", content: "" }]);
+  const [pasteIdx, setPasteIdx] = useState(0);
+  const pasteLines = pasteFiles.reduce((n, f) => n + (f.content ? f.content.split("\n").length : 0), 0);
   const bundledSite = corpus.some((f) => f.name === "PAYROLL01.CBL");
+  const patchPaste = (idx: number, patch: Partial<SourceFile>) =>
+    setPasteFiles((fs) => fs.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
+  const addPasteFile = () => {
+    setPasteFiles((fs) => [...fs, { name: `FILE${fs.length + 1}.CPY`, content: "" }]);
+    setPasteIdx(pasteFiles.length);
+  };
+  const removePasteFile = (idx: number) => {
+    setPasteFiles((fs) => (fs.length > 1 ? fs.filter((_, i) => i !== idx) : fs));
+    setPasteIdx((i) => Math.max(0, i - (idx <= i ? 1 : 0)));
+  };
   const excavatePasted = () => {
-    if (pasteLines < 5 || pasteLines > 4000) return;
-    excavate([{ name: pasteName.trim() || "PASTED.CBL", content: pasteText }]);
+    const files = pasteFiles
+      .map((f) => ({ name: f.name.trim() || "PASTED.CBL", content: f.content }))
+      .filter((f) => f.content.trim().length > 0);
+    if (!files.length || pasteLines < 5 || pasteLines > 4000) return;
+    excavate(files);
   };
 
   /* ---------- stage 4: impact ---------- */
@@ -441,17 +454,35 @@ export default function App() {
               <div className="paste-panel">
                 <div className="paste-head">
                   <span>YOUR EXCAVATION SITE</span>
-                  <input className="paste-name mono" value={pasteName} onChange={(e) => setPasteName(e.target.value)} spellCheck={false} />
+                  <span className="paste-hint-inline">programs + copybooks + DDL — the agent maps them together</span>
                 </div>
+                <div className="paste-tabs">
+                  {pasteFiles.map((f, i) => (
+                    <span key={i} className={`paste-tab ${i === pasteIdx ? "on" : ""}`} onClick={() => setPasteIdx(i)}>
+                      <span className="paste-tab-name mono">{f.name || "(unnamed)"}</span>
+                      {pasteFiles.length > 1 && (
+                        <button className="paste-tab-x" onClick={(e) => { e.stopPropagation(); removePasteFile(i); }} title="remove file">×</button>
+                      )}
+                    </span>
+                  ))}
+                  <button className="paste-tab add" onClick={addPasteFile}>+ file</button>
+                </div>
+                <input
+                  className="paste-name mono"
+                  value={pasteFiles[pasteIdx]?.name ?? ""}
+                  onChange={(e) => patchPaste(pasteIdx, { name: e.target.value })}
+                  spellCheck={false}
+                  placeholder="file name (e.g. MAIN.CBL, EMPREC.CPY)"
+                />
                 <textarea
                   className="paste-text mono"
-                  placeholder={"Paste any legacy listing here — COBOL, PL/I, RPG, old Java, stored procedures…\nThe agent extracts rules, maps dependencies and takes change requests on it."}
-                  value={pasteText}
-                  onChange={(e) => setPasteText(e.target.value)}
+                  placeholder={"Paste any legacy listing here — COBOL, PL/I, RPG, old Java, stored procedures…\nAdd copybooks / includes as extra files; the agent maps dependencies across all of them."}
+                  value={pasteFiles[pasteIdx]?.content ?? ""}
+                  onChange={(e) => patchPaste(pasteIdx, { content: e.target.value })}
                   spellCheck={false}
                 />
                 <div className="paste-meta mono">
-                  <span className={pasteLines > 4000 ? "bad" : ""}>{pasteLines} / 4000 lines</span>
+                  <span className={pasteLines > 4000 ? "bad" : ""}>{pasteFiles.length} file{pasteFiles.length > 1 ? "s" : ""} · {pasteLines} / 4000 lines total</span>
                   <span>live model run · ~2–4 min</span>
                 </div>
                 <button className="btn-dig big" disabled={pasteLines < 5 || pasteLines > 4000} onClick={excavatePasted}>
