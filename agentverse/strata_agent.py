@@ -32,6 +32,7 @@ from uagents_core.contrib.protocols.chat import (
 )
 
 STRATA_API = "https://strata.axiqo.xyz/api/run"
+ISSUES_API = "https://strata.axiqo.xyz/api/issues/github"
 WEB = "https://strata.axiqo.xyz"
 
 agent = Agent()  # hosted agents inject name/seed/mailbox automatically
@@ -55,7 +56,7 @@ def text_msg(text: str, end_session: bool = False) -> ChatMessage:
 
 
 def run_strata(change: str) -> str:
-    """One-shot agent run: analyze -> impact -> modernize -> dossier."""
+    """One-shot agent run: analyze -> impact -> modernize -> dossier -> issue tool."""
     r = requests.post(
         STRATA_API,
         json={"change": change, "modernize": True},
@@ -65,14 +66,44 @@ def run_strata(change: str) -> str:
     data = r.json()
     dossier = data.get("dossier", "")
     counts = data.get("counts", {})
-    ev = (data.get("impact") or {}).get("evidenceCheck") or {}
+    impact = data.get("impact") or {}
+    ev = impact.get("evidenceCheck") or {}
     head = (
         f"**STRATA run complete** — {counts.get('rules', '?')} rules, "
         f"{counts.get('nodes', '?')} nodes, {counts.get('edges', '?')} edges; "
         f"{ev.get('verified', '?')}/{ev.get('checked', '?')} citations verified against source.\n\n"
     )
+    # tool execution: turn the plan into GitHub issue payloads (dry-run unless the
+    # backend has GITHUB_TOKEN/GITHUB_REPO configured, then live with dryRun:false)
+    assets = ""
+    try:
+        ir = requests.post(
+            ISSUES_API,
+            json={
+                "analysisId": data.get("analysisId"),
+                "change": impact.get("change", change),
+                "impact": impact,
+                "dryRun": True,
+            },
+            timeout=60,
+        )
+        ir.raise_for_status()
+        issues = ir.json()
+        if issues.get("dryRun"):
+            assets = (
+                f"\n\n**Execution assets** — built {len(issues.get('payloads', []))} "
+                f"GitHub issue payloads (one per plan step; live filing enabled via "
+                f"GITHUB_TOKEN/GITHUB_REPO on the backend)."
+            )
+        else:
+            links = "\n".join(
+                f"- {i.get('title')}: {i.get('url')}" for i in issues.get("issues", [])
+            )
+            assets = f"\n\n**Execution assets** — filed GitHub issues:\n{links}"
+    except Exception as e:  # noqa: BLE001 — issue tool is additive, never fatal
+        assets = f"\n\n(issue tool unavailable: {e})"
     tail = f"\n\nFull visual dossier & dependency graph: {WEB}"
-    return head + dossier + tail
+    return head + dossier + assets + tail
 
 
 @chat_proto.on_message(ChatMessage)
