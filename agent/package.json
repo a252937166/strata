@@ -1,0 +1,25 @@
+{
+  "name": "strata-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "STRATA agent service: legacy-code excavation pipeline (decode / map / impact / modernize)",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "precompute": "tsx src/precompute.ts",
+    "bundle": "esbuild src/server.ts --bundle --platform=node --target=node16 --format=esm --outfile=dist/server.mjs --banner:js=\"import{createRequire as __cr}from'module';const require=__cr(import.meta.url);\""
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.5",
+    "esbuild": "^0.24.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
