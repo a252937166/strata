@@ -190,8 +190,10 @@ export default function App() {
     setModern(null);
     setDecisions({});
     setErr(null);
+    const t0 = Date.now();
     try {
       const r = await api.impact(analysis.id, q);
+      await new Promise((res) => setTimeout(res, Math.max(0, 2600 - (Date.now() - t0))));
       setImpactRes(r);
       setStage(3);
     } catch (e) {
@@ -206,8 +208,10 @@ export default function App() {
     if (!analysis || !impactRes || modernizing) return;
     setModernizing(true);
     setErr(null);
+    const t0 = Date.now();
     try {
       const r = await api.modernize(analysis.id, impactRes.change || change, impactRes);
+      await new Promise((res) => setTimeout(res, Math.max(0, 2800 - (Date.now() - t0))));
       setModern(r);
       setStage(4);
       scrollTo(modernRef);

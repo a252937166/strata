@@ -1,0 +1,925 @@
+{
+ "id": "analyze-fd718f5543e1844e",
+ "summary": {
+  "language": "COBOL, SQL, JCL (implied)",
+  "domain": "Payroll",
+  "loc": 349,
+  "eraClues": [
+   "1987 original payroll",
+   "1999 DB2 rewrite",
+   "Y2K windowing pivot 66",
+   "2009 emergency tax patch still live",
+   "grade rates last uprated 2019",
+   "dead field from 2008 luncheon vouchers"
+  ],
+  "headline": "Northfield Mfg Ltd weekly payroll with hardcoded tax bands, dual pension schemes, 35-year-old overtime rules, and a dead-but-load-bearing field, all frozen since a 2009 ‘temporary’ tax patch."
+ },
+ "rules": [
+  {
+   "id": "R1",
+   "title": "EMP-NAME width change breaks PAYRPT04 and extract job",
+   "category": "data",
+   "plainEnglish": "The EMP-NAME field length (28 bytes) is coupled to PAYRPT04 and a 1999 extract job; widening it without rebinding those programs will corrupt their data layout.",
+   "source": {
+    "file": "EMPREC.CPY",
+    "paragraph": "COMMENT",
+    "lines": [
+     3,
+     4
+    ]
+   },
+   "constants": [],
+   "risk": "high",
+   "riskWhy": "Hidden coupling between copybook length and two external jobs risks silent corruption if width changes without coordinated rebind."
+  },
+  {
+   "id": "R2",
+   "title": "Hire date stores YYMMDD with century pivot 66, bonus uses hardcoded 2026",
+   "category": "data",
+   "plainEnglish": "Employee hire date is held as two-digit year; years >=66 are treated as 19YY, else 20YY. Service bonus is then computed as (2026 − hire year), making both the pivot and the current year hardcoded and liable to break after 2065 or if not recompiled annually.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "350-SERVICE-BONUS",
+    "lines": [
+     213,
+     220
+    ]
+   },
+   "constants": [
+    {
+     "name": "Pivot",
+     "value": "66",
+     "meaning": "Century pivot for hire date windowing"
+    },
+    {
+     "name": "Current year",
+     "value": "2026",
+     "meaning": "Hardcoded reference year for service calculation"
+    }
+   ],
+   "risk": "high",
+   "riskWhy": "Windowed year logic will misattribute centuries after 2065; the hardcoded current year requires a source change each calendar year."
+  },
+  {
+   "id": "R3",
+   "title": "Dead EMP-LV-BAND field retained for PAYRPT04 offset",
+   "category": "quirk",
+   "plainEnglish": "EMP-LV-BAND has been unused since 2008 but must remain in the copybook because PAYRPT04 still references its memory offset; removing it would silently shift other fields.",
+   "source": {
+    "file": "EMPREC.CPY",
+    "paragraph": "COMMENT",
+    "lines": [
+     16,
+     18
+    ]
+   },
+   "constants": [],
+   "risk": "high",
+   "riskWhy": "Dead field is load-bearing for a downstream report; removal causes silent data misalignment without compiler error."
+  },
+  {
+   "id": "R4",
+   "title": "Standard work week is 37.5 hours",
+   "category": "pay",
+   "plainEnglish": "The normal working week is 37.5 hours; weekday and Saturday hours in excess of this trigger overtime.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "WORKING-STORAGE, WS-CONSTANTS",
+    "lines": [
+     51,
+     52
+    ]
+   },
+   "constants": [
+    {
+     "name": "WS-STD-WEEK",
+     "value": "37.5",
+     "meaning": "Standard weekly hours per Works Council Agreement 1987"
+    }
+   ],
+   "risk": "low",
+   "riskWhy": "Contractual baseline that rarely changes, but any change would require recompilation."
+  },
+  {
+   "id": "R5",
+   "title": "Overtime capped at 20 hours per week",
+   "category": "overtime",
+   "plainEnglish": "Overtime hours exceeding 20 in a week are discarded; any extra hours are paid at plain rate (no multiplier), as per Memo 02/117.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "200-HOURS",
+    "lines": [
+     180,
+     183
+    ]
+   },
+   "constants": [
+    {
+     "name": "WS-OT-CAP",
+     "value": "20",
+     "meaning": "Maximum weekly overtime hours eligible for premium pay"
+    }
+   ],
+   "risk": "medium",
+   "riskWhy": "Cap was raised once and may need adjustment again; excess hours silently forfeit premium."
+  },
+  {
+   "id": "R6",
+   "title": "Overtime multiplier is 1.50",
+   "category": "pay",
+   "plainEnglish": "Overtime hours are paid at time-and-a-half (1.50 times effective hourly rate).",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "WORKING-STORAGE, WS-CONSTANTS",
+    "lines": [
+     55,
+     55
+    ]
+   },
+   "constants": [
+    {
+     "name": "WS-OT-MULT",
+     "value": "1.50",
+     "meaning": "Overtime premium multiplier"
+    }
+   ],
+   "risk": "low",
+   "riskWhy": "Long-standing rate; change requires recompile but no dynamic drift."
+  },
+  {
+   "id": "R7",
+   "title": "Sunday rate is double time (2.00)",
+   "category": "pay",
+   "plainEnglish": "All Sunday hours are paid at double time (2.00 multiplier), regardless of total hours worked.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "WORKING-STORAGE, WS-CONSTANTS",
+    "lines": [
+     56,
+     56
+    ]
+   },
+   "constants": [
+    {
+     "name": "WS-SUN-MULT",
+     "value": "2.00",
+     "meaning": "Sunday premium multiplier per union agreement 96/2"
+    }
+   ],
+   "risk": "low",
+   "riskWhy": "Rate is stable, but hardcoded."
+  },
+  {
+   "id": "R8",
+   "title": "Night shift differential is a 12% rate uplift, not a lump sum",
+   "category": "pay",
+   "plainEnglish": "When both timecard night flag and employee night eligibility are 'Y', the base hourly rate is multiplied by 1.12; the uplift applies to all hours worked in that shift, not as a separate allowance.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "300-GROSS",
+    "lines": [
+     192,
+     197
+    ]
+   },
+   "constants": [
+    {
+     "name": "WS-NIGHT-DIFF",
+     "value": "0.12",
+     "meaning": "Night shift differential percentage (12%)"
+    }
+   ],
+   "risk": "medium",
+   "riskWhy": "The rate and the uplift logic are hardcoded; a change to lump-sum would require rewrite."
+  },
+  {
+   "id": "R9",
+   "title": "Union dues are a flat $4.20 per week",
+   "category": "deduction",
+   "plainEnglish": "Employees flagged as union members have exactly $4.20 deducted from net pay each week (check-off).",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "500-DEDUCTIONS",
+    "lines": [
+     272,
+     273
+    ]
+   },
+   "constants": [
+    {
+     "name": "WS-UNION-DUES",
+     "value": "4.20",
+     "meaning": "Weekly union dues deduction"
+    }
+   ],
+   "risk": "medium",
+   "riskWhy": "Flat rate may become stale; not linked to union schedule or CPI."
+  },
+  {
+   "id": "R10",
+   "title": "Sick pay is a flat $23.35 per day, not updated here",
+   "category": "pay",
+   "plainEnglish": "Statutory sick pay is calculated at a fixed daily rate of $23.35; the program comment explicitly warns not to uprate this value in code—HR handles changes elsewhere.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "300-GROSS",
+    "lines": [
+     206,
+     206
+    ]
+   },
+   "constants": [
+    {
+     "name": "WS-SICK-DAILY",
+     "value": "23.35",
+     "meaning": "Daily statutory sick pay rate (do not uprate here)"
+    }
+   ],
+   "risk": "high",
+   "riskWhy": "Hardcoded rate is almost certainly stale; updating it requires external HR action, creating drift risk."
+  },
+  {
+   "id": "R11",
+   "title": "Grade hourly rates are hardcoded, last uprated April 2019",
+   "category": "pay",
+   "plainEnglish": "Seven pay grades (G1–G7) have base hourly rates coded directly in the INIT table: 9.84, 10.75, 11.90, 13.20, 14.75, 17.10, 19.95. No dynamic lookup from a rate file.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "WORKING-STORAGE, WS-GRADE-INIT",
+    "lines": [
+     69,
+     75
+    ]
+   },
+   "constants": [
+    {
+     "name": "G1 rate",
+     "value": "9.84",
+     "meaning": "Grade G1 base hourly rate"
+    },
+    {
+     "name": "G2 rate",
+     "value": "10.75",
+     "meaning": "Grade G2 base hourly rate"
+    },
+    {
+     "name": "G3 rate",
+     "value": "11.90",
+     "meaning": "Grade G3 base hourly rate"
+    },
+    {
+     "name": "G4 rate",
+     "value": "13.20",
+     "meaning": "Grade G4 base hourly rate"
+    },
+    {
+     "name": "G5 rate",
+     "value": "14.75",
+     "meaning": "Grade G5 base hourly rate"
+    },
+    {
+     "name": "G6 rate",
+     "value": "17.10",
+     "meaning": "Grade G6 base hourly rate"
+    },
+    {
+     "name": "G7 rate",
+     "value": "19.95",
+     "meaning": "Grade G7 base hourly rate"
+    }
+   ],
+   "risk": "high",
+   "riskWhy": "Rates are 2019 values and will not reflect current pay awards; every change requires a program source edit and recompile."
+  },
+  {
+   "id": "R12",
+   "title": "PAYE tax bands are hardcoded since 2009 ‘temporary’ patch",
+   "category": "tax",
+   "plainEnglish": "Weekly PAYE uses: 0% on first £242.00, 20% on income between £242.01 and £967.00, 40% above £967.00. These thresholds and rates are frozen in source code.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "WORKING-STORAGE, WS-TAX-BANDS",
+    "lines": [
+     78,
+     85
+    ]
+   },
+   "constants": [
+    {
+     "name": "WS-BAND1-LIM",
+     "value": "242.00",
+     "meaning": "Weekly personal allowance (0% band)"
+    },
+    {
+     "name": "WS-BAND2-LIM",
+     "value": "967.00",
+     "meaning": "Upper earnings threshold for 20% band"
+    },
+    {
+     "name": "WS-BAND2-RATE",
+     "value": "0.20",
+     "meaning": "Basic rate tax"
+    },
+    {
+     "name": "WS-BAND3-RATE",
+     "value": "0.40",
+     "meaning": "Higher rate tax"
+    }
+   ],
+   "risk": "high",
+   "riskWhy": "Hardcoded tax thresholds and rates have not tracked fiscal changes since 2009; employees may be systematically over- or under-taxed."
+  },
+  {
+   "id": "R13",
+   "title": "NI uses same thresholds as tax, computed on gross pay",
+   "category": "tax",
+   "plainEnglish": "NI contributions: 8% on gross pay between £242.00 and £967.00, 2% above £967.00. The thresholds are identical to the tax bands; any change to one inadvertently changes the other.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "400-NI",
+    "lines": [
+     250,
+     265
+    ]
+   },
+   "constants": [
+    {
+     "name": "WS-NI-MAIN-RATE",
+     "value": "0.08",
+     "meaning": "NI main rate"
+    },
+    {
+     "name": "WS-NI-UPPER-RATE",
+     "value": "0.02",
+     "meaning": "NI upper rate"
+    }
+   ],
+   "risk": "high",
+   "riskWhy": "Coupling of NI and tax thresholds via shared constants means a fix in one always affects the other; stale hardcoded values compound the risk."
+  },
+  {
+   "id": "R14",
+   "title": "Dual pension schemes with hardcoded contribution rates",
+   "category": "pension",
+   "plainEnglish": "Standard auto-enrolment: employee 5%, employer 3%. Employees in grades G6/G7 remain on a legacy scheme (closed 2004): employee 6.5%, employer 9%. An opt-out flag sets both contributions to zero regardless of grade.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "550-PENSION",
+    "lines": [
+     281,
+     294
+    ]
+   },
+   "constants": [
+    {
+     "name": "WS-PEN-EE-STD",
+     "value": "0.050",
+     "meaning": "Standard employee pension rate"
+    },
+    {
+     "name": "WS-PEN-EE-LEG",
+     "value": "0.065",
+     "meaning": "Legacy employee pension rate"
+    },
+    {
+     "name": "WS-PEN-ER-STD",
+     "value": "0.030",
+     "meaning": "Standard employer pension rate"
+    },
+    {
+     "name": "WS-PEN-ER-LEG",
+     "value": "0.090",
+     "meaning": "Legacy employer pension rate"
+    }
+   ],
+   "risk": "high",
+   "riskWhy": "Rates are hardcoded and may have changed since 2013 (auto-enrolment) or 2004 (legacy); grandfathering logic ties grade to scheme, making scheme closure difficult."
+  },
+  {
+   "id": "R15",
+   "title": "Service bonus: 10+ years = 2%, 25+ years = 3.5% of basic pay",
+   "category": "pay",
+   "plainEnglish": "Employees receive a bonus as a percentage of basic pay: 2% for 10–24 years' service, 3.5% for 25+ years. Service years are computed from the windowed hire date against hardcoded year 2026.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "350-SERVICE-BONUS",
+    "lines": [
+     221,
+     229
+    ]
+   },
+   "constants": [
+    {
+     "name": "Bonus 10yr",
+     "value": "0.02",
+     "meaning": "Service bonus rate for 10+ years"
+    },
+    {
+     "name": "Bonus 25yr",
+     "value": "0.035",
+     "meaning": "Service bonus rate for 25+ years"
+    }
+   ],
+   "risk": "high",
+   "riskWhy": "Bonus calculation depends on hardcoded current year and windowing pivot; failures will occur after 2065 and if not manually recompiled each year."
+  },
+  {
+   "id": "R16",
+   "title": "Pension EE contribution reduces taxable pay (net pay arrangement); computation order is fixed",
+   "category": "tax",
+   "plainEnglish": "Taxable income is calculated as gross minus employee pension contribution. The code must compute pension before tax; the program contains a warning not to reorder paragraphs 400-TAX and 550-PENSION.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "400-TAX",
+    "lines": [
+     232,
+     236
+    ]
+   },
+   "constants": [],
+   "risk": "high",
+   "riskWhy": "Paragraph reordering would silently corrupt taxable income calculation; comment emphasises a long-standing dependency requiring explicit knowledge."
+  },
+  {
+   "id": "R17",
+   "title": "NI is computed on gross pay, ignoring pension—historic quirk",
+   "category": "quirk",
+   "plainEnglish": "National Insurance contributions are always calculated on gross pay, not on pension-adjusted income. This is a deliberate anomaly kept for parity with the 1999 rewrite and re-signed by Finance at each audit.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "400-NI",
+    "lines": [
+     250,
+     252
+    ]
+   },
+   "constants": [],
+   "risk": "high",
+   "riskWhy": "Deviation from fiscal norm is only maintained by institutional memory; removal or change could trigger audit failure and under/overpayment."
+  },
+  {
+   "id": "R18",
+   "title": "Negative net pay is clamped to zero with exception",
+   "category": "deduction",
+   "plainEnglish": "If net pay after all deductions becomes negative, it is set to £0.00 and an exception report is written.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "500-DEDUCTIONS",
+    "lines": [
+     275,
+     279
+    ]
+   },
+   "constants": [],
+   "risk": "medium",
+   "riskWhy": "Guard prevents negative payments but masks deduction configuration errors."
+  },
+  {
+   "id": "R19",
+   "title": "Sunday hours are excluded from the overtime threshold",
+   "category": "overtime",
+   "plainEnglish": "Only weekday and Saturday hours count towards the 37.5-hour standard week; Sunday hours never trigger overtime and are always paid separately at the Sunday rate.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "200-HOURS",
+    "lines": [
+     168,
+     179
+    ]
+   },
+   "constants": [],
+   "risk": "medium",
+   "riskWhy": "Nuanced overtime rule documented in union agreement; hardcoded logic would be easy to misinterpret during maintenance."
+  },
+  {
+   "id": "R20",
+   "title": "Pension opt-out flag overrides all contributions",
+   "category": "pension",
+   "plainEnglish": "If EMP-PEN-OPTOUT = 'Y', both employee and employer pension contributions are set to zero, irrespective of grade or legacy scheme entitlement.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "550-PENSION",
+    "lines": [
+     283,
+     285
+    ]
+   },
+   "constants": [],
+   "risk": "medium",
+   "riskWhy": "Opt-out bypasses scheme rules; if the flag is mis-sourced, employees may miss contributions with no alert."
+  },
+  {
+   "id": "R21",
+   "title": "Do not change tax paragraph without contacting Pensions Desk X4471",
+   "category": "compliance",
+   "plainEnglish": "Any modification to paragraph 400-TAX requires prior contact with the Pensions Desk at extension X4471.",
+   "source": {
+    "file": "PAYROLL01.CBL",
+    "paragraph": "COMMENT",
+    "lines": [
+     6,
+     7
+    ]
+   },
+   "constants": [],
+   "risk": "high",
+   "riskWhy": "External dependency inscribed in code; tax logic changes affect pension contribution calculations and may breach regulatory arrangements."
+  }
+ ],
+ "nodes": [
+  {
+   "id": "000-main",
+   "label": "000-MAIN",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "050-init",
+   "label": "050-INIT",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "100-process-emp",
+   "label": "100-PROCESS-EMP",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "200-hours",
+   "label": "200-HOURS",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": [
+    "R5",
+    "R19"
+   ]
+  },
+  {
+   "id": "300-gross",
+   "label": "300-GROSS",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": [
+    "R8",
+    "R10"
+   ]
+  },
+  {
+   "id": "350-service-bonus",
+   "label": "350-SERVICE-BONUS",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": [
+    "R2",
+    "R15"
+   ]
+  },
+  {
+   "id": "400-tax",
+   "label": "400-TAX",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": [
+    "R16",
+    "R21"
+   ]
+  },
+  {
+   "id": "400-ni",
+   "label": "400-NI",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": [
+    "R13",
+    "R17"
+   ]
+  },
+  {
+   "id": "400-tax-exit",
+   "label": "400-TAX-EXIT",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "500-deductions",
+   "label": "500-DEDUCTIONS",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": [
+    "R9",
+    "R18"
+   ]
+  },
+  {
+   "id": "550-pension",
+   "label": "550-PENSION",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": [
+    "R14",
+    "R20"
+   ]
+  },
+  {
+   "id": "600-write-slip",
+   "label": "600-WRITE-SLIP",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "700-post-history",
+   "label": "700-POST-HISTORY",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "800-exception",
+   "label": "800-EXCEPTION",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "900-run-totals",
+   "label": "900-RUN-TOTALS",
+   "kind": "paragraph",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "emp-master",
+   "label": "PAYROLL.EMP_MASTER",
+   "kind": "table",
+   "file": "DB2",
+   "rules": []
+  },
+  {
+   "id": "pay-history",
+   "label": "PAYROLL.PAY_HISTORY",
+   "kind": "table",
+   "file": "DB2",
+   "rules": []
+  },
+  {
+   "id": "timecard-file",
+   "label": "TIMECARD-FILE",
+   "kind": "file",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "payslip-file",
+   "label": "PAYSLIP-FILE",
+   "kind": "file",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "exception-rpt",
+   "label": "EXCEPTION-RPT",
+   "kind": "file",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  },
+  {
+   "id": "emp-rec",
+   "label": "EMPREC.CPY",
+   "kind": "copybook",
+   "file": "EMPREC.CPY",
+   "rules": [
+    "R1",
+    "R3"
+   ]
+  },
+  {
+   "id": "ws-constants",
+   "label": "WS-CONSTANTS",
+   "kind": "constants",
+   "file": "PAYROLL01.CBL",
+   "rules": [
+    "R4",
+    "R6",
+    "R7"
+   ]
+  },
+  {
+   "id": "ws-grade-init",
+   "label": "WS-GRADE-INIT",
+   "kind": "constants",
+   "file": "PAYROLL01.CBL",
+   "rules": [
+    "R11"
+   ]
+  },
+  {
+   "id": "ws-tax-bands",
+   "label": "WS-TAX-BANDS",
+   "kind": "constants",
+   "file": "PAYROLL01.CBL",
+   "rules": [
+    "R12"
+   ]
+  },
+  {
+   "id": "ws-pension-rules",
+   "label": "WS-PENSION-RULES",
+   "kind": "constants",
+   "file": "PAYROLL01.CBL",
+   "rules": []
+  }
+ ],
+ "edges": [
+  {
+   "from": "000-main",
+   "to": "050-init",
+   "kind": "performs"
+  },
+  {
+   "from": "000-main",
+   "to": "100-process-emp",
+   "kind": "performs"
+  },
+  {
+   "from": "000-main",
+   "to": "900-run-totals",
+   "kind": "performs"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "800-exception",
+   "kind": "performs"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "200-hours",
+   "kind": "performs"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "300-gross",
+   "kind": "performs"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "400-tax",
+   "kind": "performs"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "400-ni",
+   "kind": "performs"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "400-tax-exit",
+   "kind": "performs"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "500-deductions",
+   "kind": "performs"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "600-write-slip",
+   "kind": "performs"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "700-post-history",
+   "kind": "performs"
+  },
+  {
+   "from": "300-gross",
+   "to": "350-service-bonus",
+   "kind": "performs"
+  },
+  {
+   "from": "400-tax",
+   "to": "550-pension",
+   "kind": "performs"
+  },
+  {
+   "from": "400-tax",
+   "to": "400-ni",
+   "kind": "performs"
+  },
+  {
+   "from": "500-deductions",
+   "to": "800-exception",
+   "kind": "performs"
+  },
+  {
+   "from": "000-main",
+   "to": "timecard-file",
+   "kind": "reads"
+  },
+  {
+   "from": "600-write-slip",
+   "to": "payslip-file",
+   "kind": "writes"
+  },
+  {
+   "from": "800-exception",
+   "to": "exception-rpt",
+   "kind": "writes"
+  },
+  {
+   "from": "900-run-totals",
+   "to": "payslip-file",
+   "kind": "writes"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "emp-master",
+   "kind": "reads"
+  },
+  {
+   "from": "700-post-history",
+   "to": "pay-history",
+   "kind": "writes"
+  },
+  {
+   "from": "100-process-emp",
+   "to": "emp-rec",
+   "kind": "uses"
+  },
+  {
+   "from": "300-gross",
+   "to": "emp-rec",
+   "kind": "uses"
+  },
+  {
+   "from": "350-service-bonus",
+   "to": "emp-rec",
+   "kind": "uses"
+  },
+  {
+   "from": "500-deductions",
+   "to": "emp-rec",
+   "kind": "uses"
+  },
+  {
+   "from": "550-pension",
+   "to": "emp-rec",
+   "kind": "uses"
+  },
+  {
+   "from": "600-write-slip",
+   "to": "emp-rec",
+   "kind": "uses"
+  },
+  {
+   "from": "200-hours",
+   "to": "ws-constants",
+   "kind": "uses"
+  },
+  {
+   "from": "300-gross",
+   "to": "ws-constants",
+   "kind": "uses"
+  },
+  {
+   "from": "500-deductions",
+   "to": "ws-constants",
+   "kind": "uses"
+  },
+  {
+   "from": "400-tax",
+   "to": "ws-tax-bands",
+   "kind": "uses"
+  },
+  {
+   "from": "400-ni",
+   "to": "ws-tax-bands",
+   "kind": "uses"
+  },
+  {
+   "from": "550-pension",
+   "to": "ws-pension-rules",
+   "kind": "uses"
+  },
+  {
+   "from": "300-gross",
+   "to": "ws-grade-init",
+   "kind": "uses"
+  },
+  {
+   "from": "050-init",
+   "to": "ws-grade-init",
+   "kind": "uses"
+  },
+  {
+   "from": "500-deductions",
+   "to": "400-tax",
+   "kind": "depends"
+  }
+ ]
+}

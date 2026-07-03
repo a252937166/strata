@@ -1,0 +1,160 @@
+{
+ "change": "New regulation: employee pension contributions must also be deducted for National Insurance purposes (NI moves from gross basis to pension-adjusted basis).",
+ "interpretation": "NI contributions are currently computed on gross pay (R17, lines 250-252). The regulation mandates that NI must be calculated on the same pension-adjusted income used for tax, i.e., gross pay minus employee pension contribution. This requires modifying paragraph 400-NI to use WS-TAXABLE instead of WS-GROSS, aligning NI with the existing net pay arrangement (R16). The change reduces NI for employees who make pension contributions, as the earnings base is lowered by the pension amount. No threshold changes are specified; the existing shared tax/NI thresholds remain, but their suitability for the new basis should be verified.",
+ "blastRadius": [
+  {
+   "ruleId": "R13",
+   "nodeIds": [
+    "400-ni"
+   ],
+   "severity": "direct",
+   "why": "NI currently computed on gross pay; must change all references from WS-GROSS to WS-TAXABLE to use pension-adjusted income.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     254,
+     263
+    ],
+    "quote": "IF WS-GROSS <= WS-BAND1-LIM ... COMPUTE WS-NI ROUNDED = (WS-GROSS - WS-BAND1-LIM) * WS-NI-MAIN-RATE"
+   }
+  },
+  {
+   "ruleId": "R17",
+   "nodeIds": [
+    "400-ni"
+   ],
+   "severity": "direct",
+   "why": "The historic quirk of computing NI on gross pay, deliberately kept since 1999, must be eliminated. Comments and logic must reflect new basis.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     250,
+     252
+    ],
+    "quote": "*    NI IGNORES PENSION (GROSS BASIS) - HISTORIC QUIRK KEPT\n*    FOR PARITY WITH 1999 REWRITE. FINANCE SIGNS THIS OFF"
+   }
+  },
+  {
+   "ruleId": "R16",
+   "nodeIds": [
+    "400-tax"
+   ],
+   "severity": "verify",
+   "why": "NI will now consume the same pension-adjusted WS-TAXABLE produced by the 400-TAX flow. The ordering dependency (pension before taxable income) is reinforced and must not be broken.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     232,
+     236
+    ],
+    "quote": "*    ?? 09/11 EMERGENCY PATCH: PENSION EE CONTRIBUTION IS\n*    DEDUCTED BEFORE TAX (NET PAY ARRANGEMENT). DO NOT REORDER\n*    THESE PARAGRAPHS - 500-DEDUCTIONS DEPENDS ON WS-TAXABLE."
+   }
+  },
+  {
+   "ruleId": "R18",
+   "nodeIds": [
+    "500-deductions"
+   ],
+   "severity": "verify",
+   "why": "Net pay calculation (WS-GROSS - WS-TAX - WS-NI - WS-PEN-EE) will produce different results with lower NI; verify that negative net guard still functions and does not mask errors.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     275,
+     279
+    ],
+    "quote": "IF WS-NET < 0\n    MOVE 0 TO WS-NET\n    PERFORM 800-EXCEPTION"
+   }
+  },
+  {
+   "ruleId": "R12",
+   "nodeIds": [
+    "ws-tax-bands"
+   ],
+   "severity": "verify",
+   "why": "NI shares the same hardcoded thresholds (WS-BAND1-LIM, WS-BAND2-LIM) with tax. While the change does not alter these values, their applicability to the new pension-adjusted NI basis should be confirmed with current fiscal regulations.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     78,
+     85
+    ],
+    "quote": "*    WEEKLY PAYE BANDS. HARDCODED SINCE 2009 \"TEMPORARY\" PATCH.\n*    BAND1 UP TO 242.00 -> 0 PCT ... BAND3 ABOVE -> 40 PCT"
+   }
+  }
+ ],
+ "untouched": [
+  "R1",
+  "R2",
+  "R3",
+  "R4",
+  "R5",
+  "R6",
+  "R7",
+  "R8",
+  "R9",
+  "R10",
+  "R11",
+  "R14",
+  "R15",
+  "R19",
+  "R20",
+  "R21"
+ ],
+ "plan": [
+  {
+   "step": 1,
+   "action": "Contact Finance and Pensions Desk X4471 (compliance risk R21/R17) to confirm new regulation and obtain sign-off for changing NI basis.",
+   "where": "Institutional process",
+   "detail": "R17 required Finance sign-off for the old gross basis; removing it demands audit-level coordination. R21 warns about changing 400-TAX; although 400-TAX is untouched, the pension/NI linkage justifies notification."
+  },
+  {
+   "step": 2,
+   "action": "Edit source file PAYROLL01.CBL paragraph 400-NI to replace WS-GROSS with WS-TAXABLE everywhere.",
+   "where": "PAYROLL01.CBL lines 254, 257, 259, 263",
+   "detail": "Line 254: IF WS-TAXABLE <= WS-BAND1-LIM\nLine 257: IF WS-TAXABLE <= WS-BAND2-LIM\nLine 259: (WS-TAXABLE - WS-BAND1-LIM) * WS-NI-MAIN-RATE\nLine 263: (WS-TAXABLE - WS-BAND2-LIM) * WS-NI-UPPER-RATE"
+  },
+  {
+   "step": 3,
+   "action": "Update comments in 400-NI to reflect new regulation and remove historic quirk note.",
+   "where": "PAYROLL01.CBL lines 250–252",
+   "detail": "Replace existing comment with: '*    NI COMPUTED ON PENSION-ADJUSTED INCOME (WS-TAXABLE) PER REGULATION [insert ref].'"
+  },
+  {
+   "step": 4,
+   "action": "Recompile PAYROLL01, ensuring EMPREC.CPY and all dependent load modules are rebuilt (R1, R3 not triggered but verify no mismatch).",
+   "where": "Build environment",
+   "detail": "Compile with same options; confirm WS-TAXABLE data type is compatible (COMP-3 PIC 9(5)V99, same as WS-GROSS)."
+  },
+  {
+   "step": 5,
+   "action": "Execute regression test suite covering employees with and without pension contributions (opt-out, standard, legacy G6/G7), various income levels, and negative net scenarios.",
+   "where": "Unit/QA environment",
+   "detail": "Validate NI amounts, tax, net pay, exception reports, payslip fields, and PAY_HISTORY table insertions. Confirm negative net guard (R18) still operates correctly."
+  },
+  {
+   "step": 6,
+   "action": "Verify that shared thresholds (WS-BAND1-LIM, WS-BAND2-LIM) remain correct for the new NI basis; adjust if fiscal authority has updated bands.",
+   "where": "Regulatory check",
+   "detail": "If threshold changes are required, update WS-TAX-BANDS in WORKING-STORAGE. This would trigger further blast radius (R12), but out of scope of this change unless needed."
+  },
+  {
+   "step": 7,
+   "action": "Document change in source code and audit trail, including Finance/Pensions Desk sign-off date.",
+   "where": "Source control / compliance system",
+   "detail": "Add a comment block at top of PAYROLL01 referencing the regulatory change and the approval references."
+  }
+ ],
+ "risks": [
+  "Shared thresholds between tax and NI (R13) mean a future tax threshold update would inadvertently alter NI unless the coupling is broken first.",
+  "The order dependency (tax must run pension first; R16) is now even more critical: a future reordering would silently break NI.",
+  "Removing the historic gross-basis quirk (R17) may affect historical audit parity; Finance must formally accept the change.",
+  "R21 (do not change tax paragraph without Pensions Desk) technically not triggered, but Pensions Desk likely needs visibility because the NI change relies on their pension calculation.",
+  "WS-TAXABLE is set after pension contribution, which itself is computed on WS-GROSS. If opt-out logic or scheme rules change, NI will follow, which may be unintended side-effect.",
+  "Negative net guard (R18) could mask under-deduction if NI decrease pushes net higher; still valid but worth checking edge cases."
+ ],
+ "estimate": {
+  "legacyWay": "3–5 days: a specialist reading COBOL, tracing data flows through 400-NI, 400-TAX and 550-PENSION, manually changing WS-GROSS references, testing with historic payroll data, and coordinating with Finance.",
+  "withStrata": "1–2 hours: the precise rules (R13, R17, R16) pinpoint the exact lines to edit, verify, and regression-test, guided by the blast-radius map and sequence plan."
+ }
+}

@@ -1,0 +1,188 @@
+{
+ "change": "Raise the overtime multiplier from 1.5x to 1.75x for weekday overtime, effective next pay week.",
+ "interpretation": "Increase the constant WS-OT-MULT from 1.50 to 1.75 in PAYROLL01.CBL working storage. This multiplier applies to weekday and Saturday overtime hours (i.e., hours exceeding the standard 37.5-hour week, capped at 20 hours). Sunday hours remain at 2.0x and are not counted toward the overtime trigger. No historical recalculation is required; the change takes effect for future pay runs. The interpretation assumes 'weekday overtime' includes Saturday per the existing rule (union agreement 96/2) and does not alter the overtime cap or the flat-payment treatment of hours beyond the cap.",
+ "blastRadius": [
+  {
+   "ruleId": "R6",
+   "nodeIds": [
+    "ws-constants"
+   ],
+   "severity": "direct",
+   "why": "WS-OT-MULT is the constant that sets the overtime premium rate used in the OT pay calculation. Changing it is the core modification.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     55,
+     55
+    ],
+    "quote": "05 WS-OT-MULT       PIC 9V99    VALUE 1.50."
+   }
+  },
+  {
+   "ruleId": "R5",
+   "nodeIds": [
+    "200-hours"
+   ],
+   "severity": "verify",
+   "why": "The overtime cap (20 hours) remains unchanged, but the cap influences how many hours are multiplied by the new rate. Verification ensures the cap still correctly limits premium hours and that the excess-hours compensation behaviour (flat rate for overspill) is not affected.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     180,
+     183
+    ],
+    "quote": "IF WS-OT-HRS > WS-OT-CAP ... MOVE WS-OT-CAP TO WS-OT-HRS"
+   }
+  },
+  {
+   "ruleId": "R8",
+   "nodeIds": [
+    "300-gross"
+   ],
+   "severity": "verify",
+   "why": "The night-shift differential (12% uplift) affects the effective hourly rate used in OT pay. A changed multiplier interacts with the uplift and the ROUNDED clause, so verification of gross pay for night-shift overtime is necessary.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     192,
+     197
+    ],
+    "quote": "COMPUTE WS-EFF-RATE ROUNDED = WS-BASE-RATE * (1 + WS-NIGHT-DIFF)"
+   }
+  },
+  {
+   "ruleId": "R11",
+   "nodeIds": [
+    "ws-grade-init",
+    "300-gross"
+   ],
+   "severity": "verify",
+   "why": "Grade-specific base rates are not being changed, but OT pay depends on the effective rate derived from them. Regression tests across all grades (G1–G7) should confirm the new multiplier yields expected gross amounts.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     69,
+     75
+    ],
+    "quote": "G1 984 ... G71995"
+   }
+  },
+  {
+   "ruleId": "R16",
+   "nodeIds": [
+    "400-tax"
+   ],
+   "severity": "verify",
+   "why": "Pension contributions are deducted before tax (net pay arrangement). The OT multiplier change increases gross, which flows into pension contributions and taxable income. Verification ensures the pension computation and the tax calculation logic still correctly handle higher gross amounts without unintended side effects.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     232,
+     236
+    ],
+    "quote": "PERFORM 550-PENSION ... COMPUTE WS-TAXABLE = WS-GROSS - WS-PEN-EE"
+   }
+  },
+  {
+   "ruleId": "R18",
+   "nodeIds": [
+    "500-deductions"
+   ],
+   "severity": "verify",
+   "why": "The negative-net clamp and exception report may be triggered more often if the higher OT rate leads to larger deductions. Verification should include edge cases with low gross and high deductions to ensure the guard still correctly zeroes net and writes exceptions.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     275,
+     279
+    ],
+    "quote": "IF WS-NET < 0 ... MOVE 0 TO WS-NET ... PERFORM 800-EXCEPTION"
+   }
+  },
+  {
+   "ruleId": "R12",
+   "nodeIds": [
+    "ws-tax-bands",
+    "400-tax"
+   ],
+   "severity": "verify",
+   "why": "Tax thresholds are hardcoded; the increase in OT pay may push more employees into higher bands, but the code does not need modification. A regression suite should verify that the increased gross is taxed at the appropriate marginal rates according to the formula.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     78,
+     85
+    ],
+    "quote": "WS-BAND1-LIM 242.00 ... WS-BAND3-RATE .40"
+   }
+  },
+  {
+   "ruleId": "R13",
+   "nodeIds": [
+    "400-ni"
+   ],
+   "severity": "verify",
+   "why": "NI uses the same thresholds and the new OT multiplier increases gross. Verify that NI calculation remains correct (gross basis) and that the interaction with higher gross does not unmask logic errors.",
+   "evidence": {
+    "file": "PAYROLL01.CBL",
+    "lines": [
+     250,
+     265
+    ],
+    "quote": "IF WS-GROSS <= WS-BAND1-LIM ... COMPUTE WS-NI ROUNDED = ..."
+   }
+  }
+ ],
+ "untouched": [
+  "R1",
+  "R2",
+  "R3",
+  "R4",
+  "R7",
+  "R9",
+  "R10",
+  "R14",
+  "R15",
+  "R17",
+  "R19",
+  "R20",
+  "R21"
+ ],
+ "plan": [
+  {
+   "step": 1,
+   "action": "Edit",
+   "where": "PAYROLL01.CBL, line 55, the VALUE clause for WS-OT-MULT",
+   "detail": "Change 'VALUE 1.50' to 'VALUE 1.75'. Ensure no trailing spaces or other characters alter the numeric literal. The PIC 9V99 can represent 1.75 without overflow."
+  },
+  {
+   "step": 2,
+   "action": "Recompile",
+   "where": "PAYROLL01.CBL source file",
+   "detail": "Compile the program using the existing JCL/compiler options. No changes to copybooks or DB2 artefacts required."
+  },
+  {
+   "step": 3,
+   "action": "Regression test",
+   "where": "Test environment with representative timecard data",
+   "detail": "Run test cases: (a) overtime exactly at cap with various grades and night shift flags, (b) overtime below cap, (c) zero overtime, (d) Saturday hours in the mix, (e) combination with sick days and pension, (f) edge cases near tax/NI thresholds. Compare payroll slip output and PAY_HISTORY inserts to expected values computed manually with multiplier 1.75. Verify tax/NI/pension rounding errors within acceptable tolerances. Confirm no unintended exceptions or negative-net triggers."
+  },
+  {
+   "step": 4,
+   "action": "Deploy",
+   "where": "Production system, aligned with pay week cutover",
+   "detail": "Promote the compiled load module to production libraries before the next payroll run. Communicate the change to Payroll Operations and ensure they monitor exception reports for the first run."
+  }
+ ],
+ "risks": [
+  "Rounding: The ROUNDED clause on the OT pay compute may produce slightly different cent rounding, which could lead to employee queries.",
+  "Cap interaction: The 20-hour overtime cap remains in force; hours above the cap are still paid at flat effective rate (no multiplier), as per Memo 91/114. Users may mistakenly expect all overtime hours to be multiplied by 1.75.",
+  "Stale grade rates: Hardcoded base rates are from 2019, so the net effect of the multiplier increase may be less impactful if base rates are outdated. There is a risk of employee dissatisfaction if the overall pay rise is masked by stale grade tables.",
+  "Night differential compounding: The 12% uplift is applied before the multiplier, so the effective rate increase is 1.12 * 1.75, not 1.50. Verify that this is the intended compound effect.",
+  "No dynamic parameterization: The multiplier remains hardcoded; future changes will again require a source edit and recompile."
+ ],
+ "estimate": {
+  "legacyWay": "3–5 days for an experienced COBOL specialist to locate the constant, verify all dependencies manually, hand-craft test cases, and deploy.",
+  "withStrata": "2–4 hours: 30 minutes to review the dossier, one line edit, pre-identified regression plan, and confidence that no hidden couplings exist."
+ }
+}
