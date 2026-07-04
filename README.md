@@ -71,7 +71,7 @@ web/               Vite + React console (zero UI dependencies; the force-graph i
 
 - The agent is **model-agnostic** — set `STRATA_LLM_BASE / STRATA_LLM_KEY / STRATA_LLM_MODEL` to any OpenAI-compatible endpoint (local Ollama works).
 - Every model output is schema-shaped JSON with **runtime validation and a structured repair loop**; line citations come from a numbered listing and are **verified against the source** (`evidenceCheck` in every impact response).
-- Real tool execution: `POST /api/issues/github` files the impact plan as GitHub issues — `GITHUB_TOKEN` + `GITHUB_REPO` for live mode, dry-run payloads otherwise. **Live on the demo backend** — see [issues #1–#4](https://github.com/a252937166/strata/issues?q=label%3Astrata) filed by the agent.
+- Real tool execution: `POST /api/issues/github` files the impact plan as GitHub issues — `GITHUB_TOKEN` + `GITHUB_REPO` for live mode, dry-run payloads otherwise. **Live on the demo backend** — see the [issues filed by the agent](https://github.com/a252937166/strata/issues?q=is%3Aissue+STRATA) (#1–#4 et al.).
 - Analyses are cached by content hash: the bundled site is instant, pasted listings run live.
 
 ## Scale path — from a 336-line demo to an enterprise repo
